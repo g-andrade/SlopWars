@@ -3,7 +3,10 @@ defmodule Backend.WebsocketHandler do
 
   @impl true
   def init(req, state) do
-    {:cowboy_websocket, req, state}
+    host = :cowboy_req.host(req)
+    port = :cowboy_req.port(req)
+    base_url = "http://#{host}:#{port}"
+    {:cowboy_websocket, req, Map.put(state, :base_url, base_url)}
   end
 
   @impl true
@@ -40,8 +43,9 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
-  def websocket_info({:image_result, {:ok, base64_image}}, state) do
-    reply = Jason.encode!(%{"type" => "image_result", "image" => base64_image, "format" => "png"})
+  def websocket_info({:image_result, {:ok, filename}}, state) do
+    url = "#{state.base_url}/images/#{filename}"
+    reply = Jason.encode!(%{"type" => "image_result", "url" => url})
     {:reply, {:text, reply}, state}
   end
 

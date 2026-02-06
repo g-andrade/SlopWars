@@ -13,7 +13,8 @@ defmodule Backend.Application do
       :cowboy_router.compile([
         {:_, [
           {"/ws", Backend.WebsocketHandler, %{}},
-          {"/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}}
+          {"/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
+          {"/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}}
         ]}
       ])
 

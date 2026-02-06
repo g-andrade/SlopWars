@@ -62,10 +62,23 @@ defmodule Backend.Mistral.AgentServer do
   defp generate_image_task(api_key, agent_id, prompt) do
     with {:ok, conversation} <- Client.create_conversation(api_key, agent_id, prompt),
          {:ok, file_id} <- extract_file_id(conversation),
-         {:ok, binary} <- Client.download_file(api_key, file_id) do
-      {:ok, Base.encode64(binary)}
+         {:ok, binary} <- Client.download_file(api_key, file_id),
+         {:ok, filename} <- save_image(binary) do
+      {:ok, filename}
     else
       {:error, reason} -> {:error, "Image generation failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp save_image(binary) do
+    dir = Path.join(:code.priv_dir(:backend) |> to_string(), "static/images")
+    File.mkdir_p!(dir)
+    filename = Base.encode16(:crypto.strong_rand_bytes(16), case: :lower) <> ".jpg"
+    path = Path.join(dir, filename)
+
+    case File.write(path, binary) do
+      :ok -> {:ok, filename}
+      {:error, reason} -> {:error, "Failed to save image: #{inspect(reason)}"}
     end
   end
 
