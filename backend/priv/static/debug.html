@@ -122,7 +122,8 @@ function connect() {
   if (ws) { ws.onclose = null; ws.close(); }
   clearTimeout(reconnectTimer);
 
-  const url = 'ws://' + location.host + '/ws';
+  const prefix = location.pathname.replace(/\/debug$/, '');
+  const url = 'ws://' + location.host + prefix + '/ws';
   log('Connecting to ' + url, 'system');
   setStatus('connecting');
 
@@ -160,7 +161,7 @@ function handleMessage(msg) {
       break;
     case 'image_result':
       hideSpinner();
-      addImage(msg.image, msg.format || 'png');
+      addImage(msg.url);
       break;
     case 'error':
       hideSpinner();
@@ -179,10 +180,10 @@ function hideSpinner() {
   spinner.classList.remove('active');
 }
 
-function addImage(base64, format) {
+function addImage(url) {
   imagePanel.classList.remove('empty');
   const img = document.createElement('img');
-  img.src = 'data:image/' + format + ';base64,' + base64;
+  img.src = url;
   img.alt = 'Generated image';
   imagePanel.insertBefore(img, spinner);
 }
