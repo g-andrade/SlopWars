@@ -44,7 +44,7 @@ defmodule Backend.WebsocketHandler do
 
   @impl true
   def websocket_info({:image_result, {:ok, filename}}, state) do
-    url = "#{state.base_url}/images/#{filename}"
+    url = "#{state.base_url}/#{filename}"
     reply = Jason.encode!(%{"type" => "image_result", "url" => url})
     {:reply, {:text, reply}, state}
   end

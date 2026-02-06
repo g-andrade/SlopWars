@@ -14,7 +14,8 @@ defmodule Backend.Application do
         {:_, [
           {"/ws", Backend.WebsocketHandler, %{}},
           {"/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
-          {"/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}}
+          {"/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}},
+          {"/placeholders/[...]", :cowboy_static, {:dir, static_dir <> "/static/placeholders"}}
         ]}
       ])
 
@@ -22,7 +23,7 @@ defmodule Backend.Application do
       :cowboy.start_clear(:http, [{:port, port}], %{env: %{dispatch: dispatch}})
 
     children =
-      if Application.get_env(:backend, :mistral_api_key) do
+      if Application.get_env(:backend, :dev_mode) || Application.get_env(:backend, :mistral_api_key) do
         [Backend.Mistral.AgentServer]
       else
         []
