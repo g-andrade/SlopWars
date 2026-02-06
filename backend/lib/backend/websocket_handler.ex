@@ -18,8 +18,12 @@ defmodule Backend.WebsocketHandler do
         reply = Jason.encode!(%{"type" => "pong"})
         {:reply, {:text, reply}, state}
 
+      {:ok, %{"type" => "generate_image", "prompt" => prompt}} ->
+        Backend.Mistral.AgentServer.generate_image(prompt, self())
+        reply = Jason.encode!(%{"type" => "generating", "prompt" => prompt})
+        {:reply, {:text, reply}, state}
+
       {:ok, decoded} ->
-        # Placeholder for future message handling
         {:reply, {:text, Jason.encode!(%{"type" => "echo", "data" => decoded})}, state}
 
       {:error, _} ->
@@ -36,6 +40,16 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
+  def websocket_info({:image_result, {:ok, base64_image}}, state) do
+    reply = Jason.encode!(%{"type" => "image_result", "image" => base64_image, "format" => "png"})
+    {:reply, {:text, reply}, state}
+  end
+
+  def websocket_info({:image_result, {:error, message}}, state) do
+    reply = Jason.encode!(%{"type" => "error", "message" => message})
+    {:reply, {:text, reply}, state}
+  end
+
   def websocket_info(_info, state) do
     {:ok, state}
   end

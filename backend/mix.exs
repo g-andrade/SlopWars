@@ -24,6 +24,7 @@ defmodule Backend.MixProject do
     [
       {:cowboy, "~> 2.12"},
       {:jason, "~> 1.4"},
+      {:req, "~> 0.5"},
       {:gun, "~> 2.1", only: :test}
     ]
   end

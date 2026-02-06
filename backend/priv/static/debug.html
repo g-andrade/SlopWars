@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebSocket Debug</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+  header { padding: 12px 20px; background: #1a1d27; border-bottom: 1px solid #2a2d3a; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; font-weight: 600; }
+  #status { font-size: 12px; padding: 3px 10px; border-radius: 12px; font-weight: 500; }
+  #status.connected { background: #0d3320; color: #4ade80; }
+  #status.disconnected { background: #3b1219; color: #f87171; }
+  #status.connecting { background: #3b2f08; color: #facc15; }
+
+  main { flex: 1; display: flex; overflow: hidden; }
+
+  #log-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #log { flex: 1; overflow-y: auto; padding: 12px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; }
+  .log-entry { padding: 2px 0; }
+  .log-entry.sent { color: #60a5fa; }
+  .log-entry.recv { color: #4ade80; }
+  .log-entry.error { color: #f87171; }
+  .log-entry.system { color: #a78bfa; }
+  .log-entry .ts { color: #6b7280; margin-right: 8px; }
+
+  #image-panel { width: 400px; background: #1a1d27; border-left: 1px solid #2a2d3a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+  #image-panel.empty::after { content: 'Generated images appear here'; color: #6b7280; font-size: 13px; }
+  #image-panel img { max-width: 100%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+
+  #spinner { display: none; flex-direction: column; align-items: center; gap: 10px; color: #a78bfa; font-size: 13px; }
+  #spinner.active { display: flex; }
+  #spinner .dot-pulse { width: 40px; height: 10px; position: relative; }
+  #spinner .dot-pulse::before, #spinner .dot-pulse::after, #spinner .dot-pulse span {
+    content: ''; position: absolute; width: 8px; height: 8px; background: #a78bfa; border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #spinner .dot-pulse::before { left: 0; animation-delay: 0s; }
+  #spinner .dot-pulse span { left: 16px; animation-delay: 0.2s; }
+  #spinner .dot-pulse::after { left: 32px; animation-delay: 0.4s; }
+  @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+
+  footer { padding: 12px 20px; background: #1a1d27; border-top: 1px solid #2a2d3a; }
+  #input-row { display: flex; gap: 8px; }
+  #prompt { flex: 1; padding: 10px 14px; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 8px; color: #e0e0e0; font-size: 14px; font-family: inherit; outline: none; }
+  #prompt:focus { border-color: #6366f1; }
+  #prompt:disabled { opacity: 0.5; }
+  button { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  #send-btn { background: #6366f1; color: white; }
+  #send-btn:hover:not(:disabled) { background: #4f46e5; }
+  #send-btn:disabled { opacity: 0.5; cursor: default; }
+  #raw-btn { background: #2a2d3a; color: #e0e0e0; }
+  #raw-btn:hover { background: #3a3d4a; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WS Debug</h1>
+  <span id="status" class="disconnected">disconnected</span>
+</header>
+
+<main>
+  <div id="log-panel">
+    <div id="log"></div>
+  </div>
+  <div id="image-panel" class="empty">
+    <div id="spinner"><div class="dot-pulse"><span></span></div><span id="spinner-text">Generating...</span></div>
+  </div>
+</main>
+
+<footer>
+  <div id="input-row">
+    <input id="prompt" type="text" placeholder="Describe an image to generate..." disabled />
+    <button id="send-btn" disabled>Generate</button>
+    <button id="raw-btn" title="Send raw JSON">Raw</button>
+  </div>
+</footer>
+
+<script>
+const logEl = document.getElementById('log');
+const promptEl = document.getElementById('prompt');
+const sendBtn = document.getElementById('send-btn');
+const rawBtn = document.getElementById('raw-btn');
+const statusEl = document.getElementById('status');
+const imagePanel = document.getElementById('image-panel');
+const spinner = document.getElementById('spinner');
+const spinnerText = document.getElementById('spinner-text');
+
+let ws = null;
+let reconnectTimer = null;
+
+function ts() {
+  return new Date().toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function log(text, cls) {
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + cls;
+  div.innerHTML = '<span class="ts">' + ts() + '</span>' + escapeHtml(text);
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function setStatus(state) {
+  statusEl.textContent = state;
+  statusEl.className = state;
+  const connected = state === 'connected';
+  promptEl.disabled = !connected;
+  sendBtn.disabled = !connected;
+}
+
+function connect() {
+  if (ws) { ws.onclose = null; ws.close(); }
+  clearTimeout(reconnectTimer);
+
+  const url = 'ws://' + location.host + '/ws';
+  log('Connecting to ' + url, 'system');
+  setStatus('connecting');
+
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    log('Connected', 'system');
+    setStatus('connected');
+    promptEl.focus();
+  };
+
+  ws.onmessage = (e) => {
+    log('\u2190 ' + e.data, 'recv');
+    try {
+      const msg = JSON.parse(e.data);
+      handleMessage(msg);
+    } catch (_) {}
+  };
+
+  ws.onerror = () => log('WebSocket error', 'error');
+
+  ws.onclose = (e) => {
+    log('Disconnected (code ' + e.code + ')', 'system');
+    setStatus('disconnected');
+    hideSpinner();
+    reconnectTimer = setTimeout(connect, 3000);
+    log('Reconnecting in 3s...', 'system');
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'generating':
+      showSpinner('Generating: ' + (msg.prompt || ''));
+      break;
+    case 'image_result':
+      hideSpinner();
+      addImage(msg.image, msg.format || 'png');
+      break;
+    case 'error':
+      hideSpinner();
+      log('Error: ' + msg.message, 'error');
+      break;
+  }
+}
+
+function showSpinner(text) {
+  spinner.classList.add('active');
+  spinnerText.textContent = text;
+  imagePanel.classList.remove('empty');
+}
+
+function hideSpinner() {
+  spinner.classList.remove('active');
+}
+
+function addImage(base64, format) {
+  imagePanel.classList.remove('empty');
+  const img = document.createElement('img');
+  img.src = 'data:image/' + format + ';base64,' + base64;
+  img.alt = 'Generated image';
+  imagePanel.insertBefore(img, spinner);
+}
+
+function sendGenerate(prompt) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const payload = JSON.stringify({ type: 'generate_image', prompt: prompt });
+  ws.send(payload);
+  log('\u2192 ' + payload, 'sent');
+}
+
+function sendRaw(json) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(json);
+  log('\u2192 ' + json, 'sent');
+}
+
+sendBtn.addEventListener('click', () => {
+  const text = promptEl.value.trim();
+  if (!text) return;
+  sendGenerate(text);
+  promptEl.value = '';
+});
+
+promptEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
+rawBtn.addEventListener('click', () => {
+  const json = window.prompt('Enter raw JSON to send:');
+  if (json) sendRaw(json);
+});
+
+connect();
+</script>
+</body>
+</html>
