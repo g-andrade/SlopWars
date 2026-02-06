@@ -5,7 +5,9 @@ defmodule Backend.WebsocketHandler do
   def init(req, state) do
     host = :cowboy_req.host(req)
     port = :cowboy_req.port(req)
-    base_url = "http://#{host}:#{port}"
+    path = :cowboy_req.path(req)
+    prefix = String.replace_trailing(path, "/ws", "")
+    base_url = "http://#{host}:#{port}#{prefix}"
     {:cowboy_websocket, req, Map.put(state, :base_url, base_url)}
   end
 

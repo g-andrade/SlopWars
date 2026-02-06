@@ -122,7 +122,8 @@ function connect() {
   if (ws) { ws.onclose = null; ws.close(); }
   clearTimeout(reconnectTimer);
 
-  const url = 'ws://' + location.host + '/ws';
+  const prefix = location.pathname.replace(/\/debug$/, '');
+  const url = 'ws://' + location.host + prefix + '/ws';
   log('Connecting to ' + url, 'system');
   setStatus('connecting');
 

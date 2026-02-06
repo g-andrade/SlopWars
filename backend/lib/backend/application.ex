@@ -3,6 +3,8 @@ defmodule Backend.Application do
 
   use Application
 
+  @obfuscating_prefix "/fhampuaqm7vdq5niuzo3okajq4"
+
   @impl true
   def start(_type, _args) do
     port = Application.get_env(:backend, :port, 8080)
@@ -12,10 +14,10 @@ defmodule Backend.Application do
     dispatch =
       :cowboy_router.compile([
         {:_, [
-          {"/ws", Backend.WebsocketHandler, %{}},
-          {"/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
-          {"/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}},
-          {"/placeholders/[...]", :cowboy_static, {:dir, static_dir <> "/static/placeholders"}}
+          {"#{@obfuscating_prefix}/ws", Backend.WebsocketHandler, %{}},
+          {"#{@obfuscating_prefix}/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
+          {"#{@obfuscating_prefix}/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}},
+          {"#{@obfuscating_prefix}/placeholders/[...]", :cowboy_static, {:dir, static_dir <> "/static/placeholders"}}
         ]}
       ])
 
