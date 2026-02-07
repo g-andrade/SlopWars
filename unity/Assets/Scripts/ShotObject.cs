@@ -14,11 +14,13 @@ public class ShotObject : MonoBehaviour
     [Header("Stick Rules")]
     [SerializeField] private LayerMask groundMask;
     [SerializeField] private LayerMask wallMask;
+    [SerializeField] private LayerMask towerMask;
     [SerializeField] private float stickOffset = 0.002f; // tiny offset so it doesn't z-fight into the surface
 
     private Rigidbody _rb;
     private Vector3 _targetScale;
     private bool _inFlight;
+    private float _dmgMultiplier;
 
     private void OnEnable()
     {
@@ -28,9 +30,10 @@ public class ShotObject : MonoBehaviour
         _rb = GetComponent<Rigidbody>();
     }
 
-    public void OnShoot()
+    public void OnShoot(float dmgMultiplier)
     {
-        transform.DOScale(_targetScale, 0.5f);
+        _dmgMultiplier = dmgMultiplier;
+        transform.DOScale(_targetScale, 1f);
         
         // Reset physics state
         _rb.isKinematic = false;
@@ -71,6 +74,17 @@ public class ShotObject : MonoBehaviour
         {
             StickToWall(collision);
             return;
+        }
+
+        if (IsInMask(otherLayer, towerMask))
+        {
+            var towerObject = collision.gameObject.GetComponent<Tower>();
+            if (towerObject)
+            {
+                towerObject.OnTowerShot(_dmgMultiplier);
+                Destroy(gameObject);
+                return;
+            }
         }
     }
 
