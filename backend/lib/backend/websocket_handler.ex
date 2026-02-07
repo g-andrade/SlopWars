@@ -45,7 +45,7 @@ defmodule Backend.WebsocketHandler do
         ping_timer: Process.send_after(self(), :send_ping, @ping_interval_ms)
       }
 
-    {:cowboy_websocket, req, new_state}
+    {:cowboy_websocket, req, new_state, %{idle_timeout: 900_000}}
   end
 
   @impl true
