@@ -48,6 +48,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a749768fd864f07b91b8dabbcd3df01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _rb: {fileID: 6794912517779794374}
+  myCol: {fileID: 6318880916119232811}
   launchSpeed: 20
   pitchUpDegPerSecond: 220
   maxPitchUp: 90

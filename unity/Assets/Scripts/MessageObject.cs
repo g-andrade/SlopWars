@@ -40,6 +40,12 @@ public class MessageObject
     
     [JsonProperty("winner")]
     public int Winner { get; set; }
+    
+    [JsonProperty("name")]
+    public string Name { get; set; }
+    
+    [JsonProperty("url")]
+    public string Url { get; set; }
 }
 
 [Serializable]

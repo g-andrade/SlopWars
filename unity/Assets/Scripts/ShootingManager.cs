@@ -1,11 +1,9 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ShootingManager : MonoBehaviour
 {
-    [SerializeField] private ShotObject shotObjectPrefab;
-
-    private readonly List<ShotObject> _shots = new();
+    private GameObject _objectToShoot;
+    private GameObject _shield;
     
     public bool ShootingOn { get; set; }
 
@@ -13,11 +11,15 @@ public class ShootingManager : MonoBehaviour
     private Transform _shootParent;
     private float _shootDmg;
     
-    public void Init(PlayerManager playerManager, Transform shootParent, float shootDmg)
+    public void Init(PlayerManager playerManager, Transform shootParent, float shootDmg, GameObject objectToShoot, GameObject shield)
     {
+        _objectToShoot = objectToShoot;
+        _shield = shield;
         _playerManager = playerManager;
         _shootParent = shootParent;
         _shootDmg = shootDmg;
+        
+        _objectToShoot.AddComponent<ShotObject>();
     }
     
     private void Update()
@@ -38,23 +40,28 @@ public class ShootingManager : MonoBehaviour
 
     public void OnShoot()
     {
-        if (shotObjectPrefab == null || _shootParent == null)
+        if (_objectToShoot == null || _shootParent == null)
         {
             Debug.LogError("Shooting error not found ref");
             return;
         }
-
+        
         _playerManager?.SendShootMessage(_shootDmg); // this is null for the opponent shooting manager
 
-        var instance = Instantiate(shotObjectPrefab, _shootParent, false);
+        var instance = Instantiate(_objectToShoot, _shootParent, false);
+
+        var shieldInstance = Instantiate(_shield, instance.transform);
+
+        shieldInstance.SetActive(false);
+
+        instance.SetActive(true);
 
         var transform1 = instance.transform;
         transform1.localPosition = Vector3.zero;
-        transform1.localRotation = shotObjectPrefab.transform.localRotation;
+        transform1.localRotation = _objectToShoot.transform.localRotation;
 
         transform1.SetParent(transform);
 
-        _shots.Add(instance);
-        instance.OnShoot(_shootDmg);
+        instance.GetComponent<ShotObject>().OnShoot(_shootDmg);
     }
 }

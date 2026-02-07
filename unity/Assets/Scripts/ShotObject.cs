@@ -1,33 +1,34 @@
 using DG.Tweening;
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody), typeof(Collider))]
 public class ShotObject : MonoBehaviour
 {
     [Header("Launch")]
-    [SerializeField] private float launchSpeed = 12f;
+    [SerializeField] private float launchSpeed = 30f;
 
     [Header("Pitch While Flying")]
     [SerializeField] private float pitchUpDegPerSecond = 220f;
     [SerializeField] private float maxPitchUp = 90f;
 
-    [Header("Stick Rules")]
-    [SerializeField] private LayerMask groundMask;
-    [SerializeField] private LayerMask wallMask;
-    [SerializeField] private LayerMask towerMask;
     [SerializeField] private float stickOffset = 0.002f; // tiny offset so it doesn't z-fight into the surface
 
     private Rigidbody _rb;
+    private Collider _coll;
     private Vector3 _targetScale;
     private bool _inFlight;
     private float _dmgMultiplier;
 
     private void OnEnable()
     {
+        _rb = GetComponent<Rigidbody>();
+        if (!_rb)
+            _rb = gameObject.AddComponent<Rigidbody>();
+
+        _coll = GetComponent<Collider>();
+        
         var transform1 = transform;
         _targetScale = transform1.localScale;
         transform1.localScale = Vector3.zero;
-        _rb = GetComponent<Rigidbody>();
     }
 
     public void OnShoot(float dmgMultiplier)
@@ -64,24 +65,43 @@ public class ShotObject : MonoBehaviour
 
         var otherLayer = collision.gameObject.layer;
         
-        if (IsInMask(otherLayer, groundMask))
+        if (otherLayer == LayerMask.NameToLayer("Ground"))
         {
             StickToGround(collision);
+            transform.GetChild(0).GetComponent<MeshRenderer>().enabled = false;
+            gameObject.layer = LayerMask.NameToLayer("Shield");
+
+            var shield = transform.GetChild(1);
+            shield.localScale = Vector3.one * 4f;
+            
+            shield.gameObject.SetActive(true);
             return;
         }
 
-        if (IsInMask(otherLayer, wallMask))
+        if (otherLayer == LayerMask.NameToLayer("Wall"))
         {
             StickToWall(collision);
             return;
         }
 
-        if (IsInMask(otherLayer, towerMask))
+        if (otherLayer == LayerMask.NameToLayer("Tower"))
         {
-            var towerObject = collision.gameObject.GetComponent<Tower>();
+            var towerName = collision.transform.name;
+            var towerObject = GameObject.Find($"{towerName}Reference").GetComponent<Tower>();
             if (towerObject)
             {
                 towerObject.OnTowerShot(_dmgMultiplier);
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        if (otherLayer == LayerMask.NameToLayer("Shield"))
+        {
+            var shieldObject = collision.gameObject;
+            if (shieldObject)
+            {
+                Destroy(shieldObject);
                 Destroy(gameObject);
                 return;
             }
@@ -104,8 +124,7 @@ public class ShotObject : MonoBehaviour
         var cp = c.GetContact(0);
 
         var groundCol = c.collider;
-        var myCol = GetComponent<Collider>();
-        if (myCol == null)
+        if (_coll == null)
         {
             t.position = cp.point + cp.normal * stickOffset;
             return;
@@ -113,7 +132,7 @@ public class ShotObject : MonoBehaviour
 
         var position = t.position;
         var onGround = groundCol.ClosestPoint(position);
-        var mySupportTowardGround = myCol.ClosestPoint(onGround - cp.normal * 10f);
+        var mySupportTowardGround = _coll.ClosestPoint(onGround - cp.normal * 10f);
 
         var push = Vector3.Dot(onGround - mySupportTowardGround, cp.normal);
         position = position + cp.normal * push + cp.normal * stickOffset;
@@ -139,8 +158,7 @@ public class ShotObject : MonoBehaviour
         t.rotation = Quaternion.LookRotation(wallForward.normalized, Vector3.up);
 
         var wallCol = c.collider;
-        var myCol = GetComponent<Collider>();
-        if (myCol == null)
+        if (_coll == null)
         {
             t.position = cp.point + cp.normal * stickOffset;
             return;
@@ -149,14 +167,11 @@ public class ShotObject : MonoBehaviour
         var position = t.position;
         var onWall = wallCol.ClosestPoint(position);
         
-        var mySupportTowardWall = myCol.ClosestPoint(onWall - cp.normal * 10f);
+        var mySupportTowardWall = _coll.ClosestPoint(onWall - cp.normal * 10f);
         var push = Vector3.Dot(onWall - mySupportTowardWall, cp.normal);
         position = position + cp.normal * push + cp.normal * stickOffset;
         t.position = position;
     }
-
-    private static bool IsInMask(int layer, LayerMask mask)
-        => (mask.value & (1 << layer)) != 0;
 
     private static float NormalizeAngle(float a)
     {
