@@ -74,14 +74,21 @@ Server -> {"type": "builds_ready",
                            "tower_model_url": "...", "shield_model_url": "..."},
             "opponent_build": { ... }}
 
-Client -> {"type": "bomb_hit", "target": "tower"}
-Server -> {"type": "bomb_hit", "attacker": 1, "target": "tower",
-            "target_tower_hp": 142, "target_shield_hp": 0}
+# Relay messages (forwarded to opponent as-is, with "player" field added)
+Client -> {"type": "player_update", "position": {x,y,z}, "rotation": {x,y,z}}
+Opponent <- {"type": "player_update", "player": 1, "position": {x,y,z}, "rotation": {x,y,z}}
+
+Client -> {"type": "shoot", "direction": {x,y,z}, "power": 5}
+Opponent <- {"type": "shoot", "player": 1, "direction": {x,y,z}, "power": 5}
 
 Client -> {"type": "spawn_shield"}
-Server -> {"type": "shield_spawned", "player": 1, "shield_hp": 2}
+Opponent <- {"type": "spawn_shield", "player": 1}
 
-Server -> {"type": "game_over", "winner": 2, "reason": "tower_destroyed"}
+# State messages (backend tracks tower HP and detects game over)
+Client -> {"type": "tower_hp", "hp": 280}
+Server -> both: {"type": "tower_hp", "player": 1, "target_player": 2, "hp": 280}
+Server -> both: {"type": "game_over", "winner": 1, "reason": "tower_destroyed"}  (if hp <= 0)
+
 Server -> {"type": "opponent_disconnected"}
 ```
 

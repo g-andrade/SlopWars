@@ -18,12 +18,12 @@ defmodule Backend.GameRoom do
     GenServer.cast(via(room_id), {:submit_prompt, player_number, prompt, base_url})
   end
 
-  def bomb_hit(room_id, attacking_player, target) do
-    GenServer.cast(via(room_id), {:bomb_hit, attacking_player, target})
+  def relay_to_opponent(room_id, from_player, message) do
+    GenServer.cast(via(room_id), {:relay_to_opponent, from_player, message})
   end
 
-  def spawn_shield(room_id, player_number) do
-    GenServer.cast(via(room_id), {:spawn_shield, player_number})
+  def tower_hp_update(room_id, from_player, hp) do
+    GenServer.cast(via(room_id), {:tower_hp_update, from_player, hp})
   end
 
   def player_disconnected(room_id, player_number) do
@@ -47,8 +47,7 @@ defmodule Backend.GameRoom do
         1 => %{pid: player1_pid, prompt: nil, build: nil},
         2 => %{pid: player2_pid, prompt: nil, build: nil}
       },
-      towers: %{1 => nil, 2 => nil},
-      shields: %{1 => 0, 2 => 0}
+      towers: %{1 => nil, 2 => nil}
     }
 
     Logger.notice("[Room #{room_id}] Game created")
@@ -80,38 +79,33 @@ defmodule Backend.GameRoom do
     {:noreply, state}
   end
 
-  def handle_cast({:bomb_hit, attacking_player, target}, %{phase: :playing} = state) do
-    defending_player = opponent(attacking_player)
-    damage = state.players[attacking_player].build["bomb_damage"]
+  def handle_cast({:relay_to_opponent, from_player, message}, %{phase: :playing} = state) do
+    to_player = opponent(from_player)
+    relay = Map.put(message, "player", from_player)
+    send(state.players[to_player].pid, {:game_msg, relay})
+    {:noreply, state}
+  end
 
-    {state, shield_hp, tower_hp} =
-      case target do
-        "shield" ->
-          new_shield = max(0, state.shields[defending_player] - 1)
-          state = put_in(state, [:shields, defending_player], new_shield)
-          {state, new_shield, state.towers[defending_player]}
+  def handle_cast({:relay_to_opponent, _from_player, _message}, state) do
+    {:noreply, state}
+  end
 
-        "tower" ->
-          new_tower = max(0, state.towers[defending_player] - damage)
-          state = put_in(state, [:towers, defending_player], new_tower)
-          {state, state.shields[defending_player], new_tower}
-
-        _ ->
-          {state, state.shields[defending_player], state.towers[defending_player]}
-      end
+  def handle_cast({:tower_hp_update, from_player, hp}, %{phase: :playing} = state) do
+    target_player = opponent(from_player)
+    hp = max(0, hp)
+    state = put_in(state, [:towers, target_player], hp)
 
     broadcast(state, %{
-      "type" => "bomb_hit",
-      "attacker" => attacking_player,
-      "target" => target,
-      "target_shield_hp" => shield_hp,
-      "target_tower_hp" => tower_hp
+      "type" => "tower_hp",
+      "player" => from_player,
+      "target_player" => target_player,
+      "hp" => hp
     })
 
-    if tower_hp <= 0 do
+    if hp <= 0 do
       broadcast(state, %{
         "type" => "game_over",
-        "winner" => attacking_player,
+        "winner" => from_player,
         "reason" => "tower_destroyed"
       })
 
@@ -121,25 +115,7 @@ defmodule Backend.GameRoom do
     end
   end
 
-  def handle_cast({:bomb_hit, _attacking_player, _target}, state) do
-    {:noreply, state}
-  end
-
-  def handle_cast({:spawn_shield, player_number}, %{phase: :playing} = state) do
-    shield_max = state.players[player_number].build["shield_hp"]
-    new_shield = min(state.shields[player_number] + shield_max, shield_max * 3)
-    state = put_in(state, [:shields, player_number], new_shield)
-
-    broadcast(state, %{
-      "type" => "shield_spawned",
-      "player" => player_number,
-      "shield_hp" => new_shield
-    })
-
-    {:noreply, state}
-  end
-
-  def handle_cast({:spawn_shield, _player_number}, state) do
+  def handle_cast({:tower_hp_update, _from_player, _hp}, state) do
     {:noreply, state}
   end
 
@@ -164,8 +140,6 @@ defmodule Backend.GameRoom do
           |> put_in([:players, 2, :build], build2)
           |> put_in([:towers, 1], build1["tower_hp"])
           |> put_in([:towers, 2], build2["tower_hp"])
-          |> put_in([:shields, 1], 0)
-          |> put_in([:shields, 2], 0)
 
         send(state.players[1].pid, {:game_msg, %{
           "type" => "builds_ready",

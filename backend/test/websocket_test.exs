@@ -106,6 +106,90 @@ defmodule Backend.WebsocketTest do
     :gun.close(conn2)
   end
 
+  test "relay: player_update is forwarded to opponent" do
+    {conn1, ref1, conn2, ref2} = match_two_players()
+    advance_to_playing(conn1, ref1, conn2, ref2)
+
+    # Player 1 sends player_update, player 2 should receive it
+    send_json(conn1, ref1, %{"type" => "player_update", "position" => %{"x" => 1, "y" => 2, "z" => 3}, "rotation" => %{"x" => 0, "y" => 0, "z" => 0}})
+
+    msg = recv_json(conn2, ref2, 2000)
+    assert %{"type" => "player_update", "player" => 1, "position" => %{"x" => 1, "y" => 2, "z" => 3}} = msg
+
+    :gun.close(conn1)
+    :gun.close(conn2)
+  end
+
+  test "tower_hp: reports damage and triggers game_over at 0" do
+    {conn1, ref1, conn2, ref2} = match_two_players()
+    advance_to_playing(conn1, ref1, conn2, ref2)
+
+    # Player 1 reports opponent tower HP = 50
+    send_json(conn1, ref1, %{"type" => "tower_hp", "hp" => 50})
+    msg1 = recv_json(conn1, ref1, 2000)
+    assert %{"type" => "tower_hp", "player" => 1, "target_player" => 2, "hp" => 50} = msg1
+    msg2 = recv_json(conn2, ref2, 2000)
+    assert %{"type" => "tower_hp", "player" => 1, "target_player" => 2, "hp" => 50} = msg2
+
+    # Player 1 reports opponent tower HP = 0 -> game_over
+    send_json(conn1, ref1, %{"type" => "tower_hp", "hp" => 0})
+    messages = collect_messages(conn1, ref1, 2, 2000)
+    types = Enum.map(messages, & &1["type"])
+    assert "tower_hp" in types
+    assert "game_over" in types
+    game_over = Enum.find(messages, & &1["type"] == "game_over")
+    assert game_over["winner"] == 1
+    assert game_over["reason"] == "tower_destroyed"
+
+    :gun.close(conn1)
+    :gun.close(conn2)
+  end
+
+  defp match_two_players do
+    {conn1, ref1} = connect_ws()
+    {conn2, ref2} = connect_ws()
+
+    send_json(conn1, ref1, %{"type" => "join_queue"})
+    recv_json(conn1, ref1)
+    send_json(conn2, ref2, %{"type" => "join_queue"})
+    recv_json(conn2, ref2)
+    recv_json(conn1, ref1)
+
+    {conn1, ref1, conn2, ref2}
+  end
+
+  defp advance_to_playing(conn1, ref1, conn2, ref2) do
+    send_json(conn1, ref1, %{"type" => "submit_prompt", "prompt" => "Test 1"})
+    # Drain prompt_received from both
+    recv_json(conn1, ref1)
+    recv_json(conn2, ref2)
+
+    send_json(conn2, ref2, %{"type" => "submit_prompt", "prompt" => "Test 2"})
+
+    # Drain all messages until builds_ready for both players
+    _msgs1 = collect_until(conn1, ref1, "builds_ready", 5000)
+    _msgs2 = collect_until(conn2, ref2, "builds_ready", 5000)
+  end
+
+  defp collect_until(conn_pid, stream_ref, target_type, timeout) do
+    collect_until(conn_pid, stream_ref, target_type, timeout, [])
+  end
+
+  defp collect_until(conn_pid, stream_ref, target_type, timeout, acc) do
+    receive do
+      {:gun_ws, ^conn_pid, ^stream_ref, {:text, msg}} ->
+        decoded = Jason.decode!(msg)
+        acc = [decoded | acc]
+        if decoded["type"] == target_type do
+          Enum.reverse(acc)
+        else
+          collect_until(conn_pid, stream_ref, target_type, timeout, acc)
+        end
+    after
+      timeout -> Enum.reverse(acc)
+    end
+  end
+
   defp collect_messages(conn_pid, stream_ref, count, timeout) do
     collect_messages(conn_pid, stream_ref, count, timeout, [])
   end

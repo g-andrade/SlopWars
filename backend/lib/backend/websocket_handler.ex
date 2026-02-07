@@ -38,11 +38,17 @@ defmodule Backend.WebsocketHandler do
       {:ok, %{"type" => "submit_prompt", "prompt" => prompt}} ->
         handle_submit_prompt(prompt, state)
 
-      {:ok, %{"type" => "bomb_hit", "target" => target}} ->
-        handle_bomb_hit(target, state)
+      {:ok, %{"type" => "player_update"} = msg} ->
+        handle_relay(msg, state)
 
-      {:ok, %{"type" => "spawn_shield"}} ->
-        handle_spawn_shield(state)
+      {:ok, %{"type" => "shoot"} = msg} ->
+        handle_relay(msg, state)
+
+      {:ok, %{"type" => "spawn_shield"} = msg} ->
+        handle_relay(msg, state)
+
+      {:ok, %{"type" => "tower_hp", "hp" => hp}} ->
+        handle_tower_hp(hp, state)
 
       {:ok, decoded} ->
         reply(%{"type" => "echo", "data" => decoded}, state)
@@ -113,18 +119,18 @@ defmodule Backend.WebsocketHandler do
     end
   end
 
-  defp handle_bomb_hit(target, state) do
+  defp handle_relay(msg, state) do
     if state.status == :in_game and state.room_id != nil do
-      Backend.GameRoom.bomb_hit(state.room_id, state.player_number, target)
+      Backend.GameRoom.relay_to_opponent(state.room_id, state.player_number, msg)
       {:ok, state}
     else
       reply(%{"type" => "error", "message" => "not in a game"}, state)
     end
   end
 
-  defp handle_spawn_shield(state) do
+  defp handle_tower_hp(hp, state) do
     if state.status == :in_game and state.room_id != nil do
-      Backend.GameRoom.spawn_shield(state.room_id, state.player_number)
+      Backend.GameRoom.tower_hp_update(state.room_id, state.player_number, hp)
       {:ok, state}
     else
       reply(%{"type" => "error", "message" => "not in a game"}, state)

@@ -83,9 +83,11 @@
     <button id="join-btn" class="btn-primary" disabled>Join Queue</button>
     <input id="prompt" type="text" placeholder="Enter your build prompt..." disabled />
     <button id="submit-btn" class="btn-primary" disabled>Submit Prompt</button>
-    <button id="bomb-tower-btn" class="btn-action" disabled>Bomb Tower</button>
-    <button id="bomb-shield-btn" class="btn-action" disabled>Bomb Shield</button>
+    <button id="shoot-btn" class="btn-action" disabled>Shoot</button>
     <button id="shield-btn" class="btn-shield" disabled>Spawn Shield</button>
+    <input id="tower-hp-input" type="number" placeholder="Tower HP" style="min-width:80px;flex:0" disabled />
+    <button id="tower-hp-btn" class="btn-action" disabled>Set Tower HP</button>
+    <button id="pos-btn" class="btn-raw" disabled>Send Position</button>
     <button id="raw-btn" class="btn-raw" title="Send raw JSON">Raw</button>
   </div>
 </footer>
@@ -97,9 +99,11 @@ const phaseEl = document.getElementById('game-phase');
 const promptEl = document.getElementById('prompt');
 const joinBtn = document.getElementById('join-btn');
 const submitBtn = document.getElementById('submit-btn');
-const bombTowerBtn = document.getElementById('bomb-tower-btn');
-const bombShieldBtn = document.getElementById('bomb-shield-btn');
+const shootBtn = document.getElementById('shoot-btn');
 const shieldBtn = document.getElementById('shield-btn');
+const towerHpInput = document.getElementById('tower-hp-input');
+const towerHpBtn = document.getElementById('tower-hp-btn');
+const posBtn = document.getElementById('pos-btn');
 const rawBtn = document.getElementById('raw-btn');
 
 let ws = null;
@@ -136,9 +140,11 @@ function setPhase(phase) {
   joinBtn.disabled = phase !== 'idle' || !ws || ws.readyState !== WebSocket.OPEN;
   promptEl.disabled = phase !== 'prompting';
   submitBtn.disabled = phase !== 'prompting';
-  bombTowerBtn.disabled = phase !== 'playing';
-  bombShieldBtn.disabled = phase !== 'playing';
+  shootBtn.disabled = phase !== 'playing';
   shieldBtn.disabled = phase !== 'playing';
+  towerHpInput.disabled = phase !== 'playing';
+  towerHpBtn.disabled = phase !== 'playing';
+  posBtn.disabled = phase !== 'playing';
 }
 
 function sendMsg(obj) {
@@ -164,10 +170,7 @@ function updateHpDisplay(msg) {
   const panel = document.getElementById('hp-panel');
   const display = document.getElementById('hp-display');
   panel.style.display = 'block';
-  const lines = [];
-  if (msg.target_tower_hp !== undefined) lines.push(`<div class="stat"><span>Target Tower HP</span><span class="stat-val">${msg.target_tower_hp}</span></div>`);
-  if (msg.target_shield_hp !== undefined) lines.push(`<div class="stat"><span>Target Shield HP</span><span class="stat-val">${msg.target_shield_hp}</span></div>`);
-  display.innerHTML = lines.join('');
+  display.innerHTML = `<div class="stat"><span>Player ${msg.target_player} Tower HP</span><span class="stat-val">${msg.hp}</span></div>`;
 }
 
 function handleMessage(msg) {
@@ -203,12 +206,18 @@ function handleMessage(msg) {
       setPhase('playing');
       log('Builds ready — FIGHT!', 'system');
       break;
-    case 'bomb_hit':
-      updateHpDisplay(msg);
-      log(`Player ${msg.attacker} hit ${msg.target}! Tower HP: ${msg.target_tower_hp}, Shield HP: ${msg.target_shield_hp}`, 'system');
+    case 'player_update':
+      log(`Player ${msg.player} position: ${JSON.stringify(msg.position)}, rotation: ${JSON.stringify(msg.rotation)}`, 'system');
       break;
-    case 'shield_spawned':
-      log(`Player ${msg.player} spawned shield (HP: ${msg.shield_hp})`, 'system');
+    case 'shoot':
+      log(`Player ${msg.player} shot! ${JSON.stringify(msg)}`, 'system');
+      break;
+    case 'spawn_shield':
+      log(`Player ${msg.player} spawned shield`, 'system');
+      break;
+    case 'tower_hp':
+      updateHpDisplay(msg);
+      log(`Player ${msg.player} reports Player ${msg.target_player} tower HP: ${msg.hp}`, 'system');
       break;
     case 'game_over':
       setPhase('game_over');
@@ -272,9 +281,13 @@ promptEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
 });
 
-bombTowerBtn.addEventListener('click', () => sendMsg({ type: 'bomb_hit', target: 'tower' }));
-bombShieldBtn.addEventListener('click', () => sendMsg({ type: 'bomb_hit', target: 'shield' }));
+shootBtn.addEventListener('click', () => sendMsg({ type: 'shoot', direction: {x: 0, y: 1, z: 0}, power: 5 }));
 shieldBtn.addEventListener('click', () => sendMsg({ type: 'spawn_shield' }));
+towerHpBtn.addEventListener('click', () => {
+  const hp = parseInt(towerHpInput.value, 10);
+  if (!isNaN(hp)) sendMsg({ type: 'tower_hp', hp: hp });
+});
+posBtn.addEventListener('click', () => sendMsg({ type: 'player_update', position: {x: 1, y: 2, z: 3}, rotation: {x: 0, y: 0, z: 0} }));
 
 rawBtn.addEventListener('click', () => {
   const json = window.prompt('Enter raw JSON to send:');
