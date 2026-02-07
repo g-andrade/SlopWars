@@ -1,6 +1,8 @@
 # Backend
 
-Elixir/Cowboy WebSocket server that generates images via the Mistral Agents API.
+Elixir/Cowboy WebSocket server for the "SLOP!" 2-player artillery/tower-defense game.
+Players enter prompts, an AI Slop Brain analyzes them into game builds (stats + asset descriptions),
+and the backend manages matchmaking, game rooms, and state.
 
 ## Quick Start
 
@@ -19,31 +21,35 @@ Debug UI: `http://localhost:8080/fhampuaqm7vdq5niuzo3okajq4/debug`
 
 ## Project Structure
 
-- `lib/backend/application.ex` — Cowboy HTTP setup, supervisor, route dispatch
-- `lib/backend/websocket_handler.ex` — WebSocket message handling (ping/pong, echo, image generation)
-- `lib/backend/mistral/client.ex` — stateless HTTP wrapper for Mistral API (agents, conversations, file download)
-- `lib/backend/mistral/agent_server.ex` — GenServer managing the Mistral agent; handles dev mode with placeholders
-- `priv/static/debug.html` — browser debug UI for WebSocket testing
-- `priv/static/placeholders/` — placeholder images for dev mode
-- `priv/static/images/` — generated images (gitignored)
+- `lib/backend/application.ex` — Cowboy HTTP setup, supervisor (Registry, Matchmaker, DynamicSupervisor), route dispatch
+- `lib/backend/websocket_handler.ex` — WebSocket message handling for the game protocol
+- `lib/backend/matchmaker.ex` — GenServer pairing players into game rooms
+- `lib/backend/game_room.ex` — Per-game GenServer managing lifecycle: prompting → analyzing → playing → game_over
+- `lib/backend/asb.ex` — AI Slop Brain: analyzes player prompts into builds (tone, stats, descriptions, model URLs)
+- `lib/backend/mistral/client.ex` — Stateless HTTP wrapper for Mistral API (chat completions, agents, file download)
+- `lib/backend/mistral/agent_server.ex` — Legacy GenServer for image generation (not currently started)
+- `priv/static/debug.html` — Browser debug UI for game testing
+- `priv/static/models/` — Placeholder 3D model files (served to clients)
+- `priv/static/placeholders/` — Placeholder images for dev mode
 
 ## Configuration
 
 Secrets go in `config/dev_secrets.exs` (gitignored). See `config/secrets_example.exs` for the template.
 
-- `config :backend, mistral_api_key: "..."` — required for production image generation
-- `config :backend, dev_mode: true` — uses placeholder images with simulated 12-30s delay instead of calling Mistral
+- `config :backend, mistral_api_key: "..."` — required for production ASB analysis
+- `config :backend, dev_mode: true` — ASB returns randomized stub builds with 1-2s delay instead of calling Mistral
 - `config :backend, port: 8080` — HTTP port (default 8080)
 
-Dev mode is enabled by default in `config/dev.exs`.
+Dev mode is enabled by default in `config/dev.exs` and `config/test.exs`.
 
 ## Architecture Notes
 
 - All routes are prefixed with an obfuscating path segment (see `@obfuscating_prefix` in `application.ex`)
-- The WebSocket handler derives `base_url` from the incoming request's host, port, and path prefix so image URLs work from any client (localhost, LAN, etc.)
-- Image generation is async: client gets an immediate `{"type": "generating"}` ack, then receives `{"type": "image_result", "url": "..."}` when ready
-- Generated images are saved to disk and served as static files rather than sent as base64 over the WebSocket
-- `AgentServer` starts only when `dev_mode` or `mistral_api_key` is configured; tests run without either
+- `Backend.GameRegistry` (Registry) is used for naming GameRoom processes by room_id
+- `Backend.GameRoomSupervisor` (DynamicSupervisor) supervises per-game GameRoom GenServers
+- The WebSocket handler derives `base_url` from the incoming request so model/asset URLs work from any client
+- ASB analysis is async: GameRoom kicks off a Task, receives results via `handle_info`
+- 3D model URLs currently point to a placeholder file; real Hyper3D integration comes later
 
 ## WebSocket Protocol
 
@@ -53,15 +59,32 @@ Endpoint: `/<prefix>/ws`
 Client -> {"type": "ping"}
 Server -> {"type": "pong"}
 
-Client -> {"type": "generate_image", "prompt": "a cat in space"}
-Server -> {"type": "generating", "prompt": "a cat in space"}
-Server -> {"type": "image_result", "url": "http://host:port/<prefix>/images/abc.jpg"}
-   or  -> {"type": "error", "message": "..."}
+Client -> {"type": "join_queue"}
+Server -> {"type": "queued"}
+Server -> {"type": "matched", "room_id": "abc", "player_number": 1}
 
-Client -> {"type": "anything_else", ...}
-Server -> {"type": "echo", "data": ...}
+Client -> {"type": "submit_prompt", "prompt": "No prisoners!"}
+Server -> {"type": "prompt_received", "player": 1}
+Server -> {"type": "both_prompts_in"}
+Server -> {"type": "analyzing"}
+Server -> {"type": "builds_ready",
+            "your_build": {"tone": "aggressive", "bomb_damage": 8, "tower_hp": 150,
+                           "shield_hp": 1, "bomb_description": "...", "tower_description": "...",
+                           "shield_description": "...", "bomb_model_url": "...",
+                           "tower_model_url": "...", "shield_model_url": "..."},
+            "opponent_build": { ... }}
+
+Client -> {"type": "bomb_hit", "target": "tower"}
+Server -> {"type": "bomb_hit", "attacker": 1, "target": "tower",
+            "target_tower_hp": 142, "target_shield_hp": 0}
+
+Client -> {"type": "spawn_shield"}
+Server -> {"type": "shield_spawned", "player": 1, "shield_hp": 2}
+
+Server -> {"type": "game_over", "winner": 2, "reason": "tower_destroyed"}
+Server -> {"type": "opponent_disconnected"}
 ```
 
 ## Tests
 
-Tests use `gun` to connect to the WebSocket and verify ping/pong and echo behavior. The server must not already be running on port 8080 when running tests.
+Tests use `gun` to connect to the WebSocket and verify the full game flow (ping/pong, matchmaking, prompt submission, build generation). The server must not already be running on port 8080 when running tests. Test config enables dev_mode so ASB uses stubs.

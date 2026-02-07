@@ -8,7 +8,17 @@ defmodule Backend.WebsocketHandler do
     path = :cowboy_req.path(req)
     prefix = String.replace_trailing(path, "/ws", "")
     base_url = "http://#{host}:#{port}#{prefix}"
-    {:cowboy_websocket, req, Map.put(state, :base_url, base_url)}
+    player_id = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+
+    new_state =
+      state
+      |> Map.put(:base_url, base_url)
+      |> Map.put(:player_id, player_id)
+      |> Map.put(:status, :connected)
+      |> Map.put(:room_id, nil)
+      |> Map.put(:player_number, nil)
+
+    {:cowboy_websocket, req, new_state}
   end
 
   @impl true
@@ -20,19 +30,25 @@ defmodule Backend.WebsocketHandler do
   def websocket_handle({:text, msg}, state) do
     case Jason.decode(msg) do
       {:ok, %{"type" => "ping"}} ->
-        reply = Jason.encode!(%{"type" => "pong"})
-        {:reply, {:text, reply}, state}
+        reply(%{"type" => "pong"}, state)
 
-      {:ok, %{"type" => "generate_image", "prompt" => prompt}} ->
-        Backend.Mistral.AgentServer.generate_image(prompt, self())
-        reply = Jason.encode!(%{"type" => "generating", "prompt" => prompt})
-        {:reply, {:text, reply}, state}
+      {:ok, %{"type" => "join_queue"}} ->
+        handle_join_queue(state)
+
+      {:ok, %{"type" => "submit_prompt", "prompt" => prompt}} ->
+        handle_submit_prompt(prompt, state)
+
+      {:ok, %{"type" => "bomb_hit", "target" => target}} ->
+        handle_bomb_hit(target, state)
+
+      {:ok, %{"type" => "spawn_shield"}} ->
+        handle_spawn_shield(state)
 
       {:ok, decoded} ->
-        {:reply, {:text, Jason.encode!(%{"type" => "echo", "data" => decoded})}, state}
+        reply(%{"type" => "echo", "data" => decoded}, state)
 
       {:error, _} ->
-        {:reply, {:text, Jason.encode!(%{"type" => "error", "message" => "invalid json"})}, state}
+        reply(%{"type" => "error", "message" => "invalid json"}, state)
     end
   end
 
@@ -45,15 +61,13 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
-  def websocket_info({:image_result, {:ok, filename}}, state) do
-    url = "#{state.base_url}/#{filename}"
-    reply = Jason.encode!(%{"type" => "image_result", "url" => url})
-    {:reply, {:text, reply}, state}
+  def websocket_info({:matched, room_id, player_number}, state) do
+    state = %{state | status: :in_game, room_id: room_id, player_number: player_number}
+    reply(%{"type" => "matched", "room_id" => room_id, "player_number" => player_number}, state)
   end
 
-  def websocket_info({:image_result, {:error, message}}, state) do
-    reply = Jason.encode!(%{"type" => "error", "message" => message})
-    {:reply, {:text, reply}, state}
+  def websocket_info({:game_msg, payload}, state) do
+    {:reply, {:text, Jason.encode!(payload)}, state}
   end
 
   def websocket_info(_info, state) do
@@ -61,7 +75,63 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
-  def terminate(_reason, _req, _state) do
+  def terminate(_reason, _req, state) do
+    case state.status do
+      :in_queue ->
+        Backend.Matchmaker.leave_queue(self())
+
+      :in_game when state.room_id != nil and state.player_number != nil ->
+        Backend.GameRoom.player_disconnected(state.room_id, state.player_number)
+
+      _ ->
+        :ok
+    end
+
     :ok
+  end
+
+  # -- Private handlers --
+
+  defp handle_join_queue(state) do
+    case Backend.Matchmaker.join_queue(self(), state.player_id) do
+      {:ok, :waiting} ->
+        state = %{state | status: :in_queue}
+        reply(%{"type" => "queued"}, state)
+
+      {:ok, :matched, room_id, player_number} ->
+        state = %{state | status: :in_game, room_id: room_id, player_number: player_number}
+        reply(%{"type" => "matched", "room_id" => room_id, "player_number" => player_number}, state)
+    end
+  end
+
+  defp handle_submit_prompt(prompt, state) do
+    if state.status == :in_game and state.room_id != nil do
+      Backend.GameRoom.submit_prompt(state.room_id, state.player_number, prompt, state.base_url)
+      {:ok, state}
+    else
+      reply(%{"type" => "error", "message" => "not in a game"}, state)
+    end
+  end
+
+  defp handle_bomb_hit(target, state) do
+    if state.status == :in_game and state.room_id != nil do
+      Backend.GameRoom.bomb_hit(state.room_id, state.player_number, target)
+      {:ok, state}
+    else
+      reply(%{"type" => "error", "message" => "not in a game"}, state)
+    end
+  end
+
+  defp handle_spawn_shield(state) do
+    if state.status == :in_game and state.room_id != nil do
+      Backend.GameRoom.spawn_shield(state.room_id, state.player_number)
+      {:ok, state}
+    else
+      reply(%{"type" => "error", "message" => "not in a game"}, state)
+    end
+  end
+
+  defp reply(message, state) do
+    {:reply, {:text, Jason.encode!(message)}, state}
   end
 end

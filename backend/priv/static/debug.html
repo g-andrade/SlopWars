@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WebSocket Debug</title>
+<title>SLOP! Debug</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
@@ -14,6 +14,7 @@
   #status.connected { background: #0d3320; color: #4ade80; }
   #status.disconnected { background: #3b1219; color: #f87171; }
   #status.connecting { background: #3b2f08; color: #facc15; }
+  #game-phase { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: #1e293b; color: #94a3b8; }
 
   main { flex: 1; display: flex; overflow: hidden; }
 
@@ -26,71 +27,84 @@
   .log-entry.system { color: #a78bfa; }
   .log-entry .ts { color: #6b7280; margin-right: 8px; }
 
-  #image-panel { width: 400px; background: #1a1d27; border-left: 1px solid #2a2d3a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
-  #image-panel.empty::after { content: 'Generated images appear here'; color: #6b7280; font-size: 13px; }
-  #image-panel img { max-width: 100%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
-
-  #spinner { display: none; flex-direction: column; align-items: center; gap: 10px; color: #a78bfa; font-size: 13px; }
-  #spinner.active { display: flex; }
-  #spinner .dot-pulse { width: 40px; height: 10px; position: relative; }
-  #spinner .dot-pulse::before, #spinner .dot-pulse::after, #spinner .dot-pulse span {
-    content: ''; position: absolute; width: 8px; height: 8px; background: #a78bfa; border-radius: 50%;
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  #spinner .dot-pulse::before { left: 0; animation-delay: 0s; }
-  #spinner .dot-pulse span { left: 16px; animation-delay: 0.2s; }
-  #spinner .dot-pulse::after { left: 32px; animation-delay: 0.4s; }
-  @keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+  #game-panel { width: 380px; background: #1a1d27; border-left: 1px solid #2a2d3a; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .panel-section { background: #0f1117; border: 1px solid #2a2d3a; border-radius: 8px; padding: 14px; }
+  .panel-section h3 { font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; letter-spacing: 0.5px; }
+  .stat { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+  .stat-val { color: #a78bfa; font-weight: 600; }
 
   footer { padding: 12px 20px; background: #1a1d27; border-top: 1px solid #2a2d3a; }
-  #input-row { display: flex; gap: 8px; }
-  #prompt { flex: 1; padding: 10px 14px; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 8px; color: #e0e0e0; font-size: 14px; font-family: inherit; outline: none; }
-  #prompt:focus { border-color: #6366f1; }
-  #prompt:disabled { opacity: 0.5; }
-  button { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
-  #send-btn { background: #6366f1; color: white; }
-  #send-btn:hover:not(:disabled) { background: #4f46e5; }
-  #send-btn:disabled { opacity: 0.5; cursor: default; }
-  #raw-btn { background: #2a2d3a; color: #e0e0e0; }
-  #raw-btn:hover { background: #3a3d4a; }
+  #controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  input { padding: 10px 14px; background: #0f1117; border: 1px solid #2a2d3a; border-radius: 8px; color: #e0e0e0; font-size: 14px; font-family: inherit; outline: none; flex: 1; min-width: 200px; }
+  input:focus { border-color: #6366f1; }
+  input:disabled { opacity: 0.5; }
+  button { padding: 10px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .btn-primary { background: #6366f1; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+  .btn-action { background: #dc2626; color: white; }
+  .btn-action:hover:not(:disabled) { background: #b91c1c; }
+  .btn-shield { background: #2563eb; color: white; }
+  .btn-shield:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-raw { background: #2a2d3a; color: #e0e0e0; }
+  .btn-raw:hover { background: #3a3d4a; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>WS Debug</h1>
+  <h1>SLOP! Debug</h1>
   <span id="status" class="disconnected">disconnected</span>
+  <span id="game-phase">idle</span>
 </header>
 
 <main>
   <div id="log-panel">
     <div id="log"></div>
   </div>
-  <div id="image-panel" class="empty">
-    <div id="spinner"><div class="dot-pulse"><span></span></div><span id="spinner-text">Generating...</span></div>
+  <div id="game-panel">
+    <div class="panel-section" id="your-build-panel" style="display:none">
+      <h3>Your Build</h3>
+      <div id="your-build"></div>
+    </div>
+    <div class="panel-section" id="opponent-build-panel" style="display:none">
+      <h3>Opponent Build</h3>
+      <div id="opponent-build"></div>
+    </div>
+    <div class="panel-section" id="hp-panel" style="display:none">
+      <h3>Game State</h3>
+      <div id="hp-display"></div>
+    </div>
   </div>
 </main>
 
 <footer>
-  <div id="input-row">
-    <input id="prompt" type="text" placeholder="Describe an image to generate..." disabled />
-    <button id="send-btn" disabled>Generate</button>
-    <button id="raw-btn" title="Send raw JSON">Raw</button>
+  <div id="controls">
+    <button id="join-btn" class="btn-primary" disabled>Join Queue</button>
+    <input id="prompt" type="text" placeholder="Enter your build prompt..." disabled />
+    <button id="submit-btn" class="btn-primary" disabled>Submit Prompt</button>
+    <button id="bomb-tower-btn" class="btn-action" disabled>Bomb Tower</button>
+    <button id="bomb-shield-btn" class="btn-action" disabled>Bomb Shield</button>
+    <button id="shield-btn" class="btn-shield" disabled>Spawn Shield</button>
+    <button id="raw-btn" class="btn-raw" title="Send raw JSON">Raw</button>
   </div>
 </footer>
 
 <script>
 const logEl = document.getElementById('log');
-const promptEl = document.getElementById('prompt');
-const sendBtn = document.getElementById('send-btn');
-const rawBtn = document.getElementById('raw-btn');
 const statusEl = document.getElementById('status');
-const imagePanel = document.getElementById('image-panel');
-const spinner = document.getElementById('spinner');
-const spinnerText = document.getElementById('spinner-text');
+const phaseEl = document.getElementById('game-phase');
+const promptEl = document.getElementById('prompt');
+const joinBtn = document.getElementById('join-btn');
+const submitBtn = document.getElementById('submit-btn');
+const bombTowerBtn = document.getElementById('bomb-tower-btn');
+const bombShieldBtn = document.getElementById('bomb-shield-btn');
+const shieldBtn = document.getElementById('shield-btn');
+const rawBtn = document.getElementById('raw-btn');
 
 let ws = null;
 let reconnectTimer = null;
+let gameState = { phase: 'idle', playerNumber: null, roomId: null, yourBuild: null, opponentBuild: null };
 
 function ts() {
   return new Date().toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -113,9 +127,101 @@ function escapeHtml(s) {
 function setStatus(state) {
   statusEl.textContent = state;
   statusEl.className = state;
-  const connected = state === 'connected';
-  promptEl.disabled = !connected;
-  sendBtn.disabled = !connected;
+  joinBtn.disabled = state !== 'connected' || gameState.phase !== 'idle';
+}
+
+function setPhase(phase) {
+  gameState.phase = phase;
+  phaseEl.textContent = phase;
+  joinBtn.disabled = phase !== 'idle' || !ws || ws.readyState !== WebSocket.OPEN;
+  promptEl.disabled = phase !== 'prompting';
+  submitBtn.disabled = phase !== 'prompting';
+  bombTowerBtn.disabled = phase !== 'playing';
+  bombShieldBtn.disabled = phase !== 'playing';
+  shieldBtn.disabled = phase !== 'playing';
+}
+
+function sendMsg(obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const json = JSON.stringify(obj);
+  ws.send(json);
+  log('\u2192 ' + json, 'sent');
+}
+
+function renderBuild(container, build) {
+  container.innerHTML = `
+    <div class="stat"><span>Tone</span><span class="stat-val">${build.tone}</span></div>
+    <div class="stat"><span>Bomb Damage</span><span class="stat-val">${build.bomb_damage}</span></div>
+    <div class="stat"><span>Tower HP</span><span class="stat-val">${build.tower_hp}</span></div>
+    <div class="stat"><span>Shield HP</span><span class="stat-val">${build.shield_hp}</span></div>
+    <div class="stat"><span>Bomb</span><span class="stat-val" style="font-size:11px">${build.bomb_description || '-'}</span></div>
+    <div class="stat"><span>Tower</span><span class="stat-val" style="font-size:11px">${build.tower_description || '-'}</span></div>
+    <div class="stat"><span>Shield</span><span class="stat-val" style="font-size:11px">${build.shield_description || '-'}</span></div>
+  `;
+}
+
+function updateHpDisplay(msg) {
+  const panel = document.getElementById('hp-panel');
+  const display = document.getElementById('hp-display');
+  panel.style.display = 'block';
+  const lines = [];
+  if (msg.target_tower_hp !== undefined) lines.push(`<div class="stat"><span>Target Tower HP</span><span class="stat-val">${msg.target_tower_hp}</span></div>`);
+  if (msg.target_shield_hp !== undefined) lines.push(`<div class="stat"><span>Target Shield HP</span><span class="stat-val">${msg.target_shield_hp}</span></div>`);
+  display.innerHTML = lines.join('');
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'queued':
+      setPhase('queued');
+      log('In queue, waiting for opponent...', 'system');
+      break;
+    case 'matched':
+      gameState.roomId = msg.room_id;
+      gameState.playerNumber = msg.player_number;
+      setPhase('prompting');
+      log(`Matched! Room: ${msg.room_id}, You are Player ${msg.player_number}`, 'system');
+      promptEl.focus();
+      break;
+    case 'prompt_received':
+      log(`Player ${msg.player} prompt received`, 'system');
+      break;
+    case 'both_prompts_in':
+      log('Both prompts submitted!', 'system');
+      break;
+    case 'analyzing':
+      setPhase('analyzing');
+      log('AI Slop Brain analyzing prompts...', 'system');
+      break;
+    case 'builds_ready':
+      gameState.yourBuild = msg.your_build;
+      gameState.opponentBuild = msg.opponent_build;
+      document.getElementById('your-build-panel').style.display = 'block';
+      document.getElementById('opponent-build-panel').style.display = 'block';
+      renderBuild(document.getElementById('your-build'), msg.your_build);
+      renderBuild(document.getElementById('opponent-build'), msg.opponent_build);
+      setPhase('playing');
+      log('Builds ready — FIGHT!', 'system');
+      break;
+    case 'bomb_hit':
+      updateHpDisplay(msg);
+      log(`Player ${msg.attacker} hit ${msg.target}! Tower HP: ${msg.target_tower_hp}, Shield HP: ${msg.target_shield_hp}`, 'system');
+      break;
+    case 'shield_spawned':
+      log(`Player ${msg.player} spawned shield (HP: ${msg.shield_hp})`, 'system');
+      break;
+    case 'game_over':
+      setPhase('game_over');
+      log(`GAME OVER! Player ${msg.winner} wins (${msg.reason})`, 'system');
+      break;
+    case 'opponent_disconnected':
+      setPhase('game_over');
+      log('Opponent disconnected — you win!', 'system');
+      break;
+    case 'error':
+      log('Error: ' + msg.message, 'error');
+      break;
+  }
 }
 
 function connect() {
@@ -132,15 +238,12 @@ function connect() {
   ws.onopen = () => {
     log('Connected', 'system');
     setStatus('connected');
-    promptEl.focus();
+    setPhase('idle');
   };
 
   ws.onmessage = (e) => {
     log('\u2190 ' + e.data, 'recv');
-    try {
-      const msg = JSON.parse(e.data);
-      handleMessage(msg);
-    } catch (_) {}
+    try { handleMessage(JSON.parse(e.data)); } catch (_) {}
   };
 
   ws.onerror = () => log('WebSocket error', 'error');
@@ -148,76 +251,34 @@ function connect() {
   ws.onclose = (e) => {
     log('Disconnected (code ' + e.code + ')', 'system');
     setStatus('disconnected');
-    hideSpinner();
+    setPhase('idle');
     reconnectTimer = setTimeout(connect, 3000);
     log('Reconnecting in 3s...', 'system');
   };
 }
 
-function handleMessage(msg) {
-  switch (msg.type) {
-    case 'generating':
-      showSpinner('Generating: ' + (msg.prompt || ''));
-      break;
-    case 'image_result':
-      hideSpinner();
-      addImage(msg.url);
-      break;
-    case 'error':
-      hideSpinner();
-      log('Error: ' + msg.message, 'error');
-      break;
-  }
-}
+joinBtn.addEventListener('click', () => sendMsg({ type: 'join_queue' }));
 
-function showSpinner(text) {
-  spinner.classList.add('active');
-  spinnerText.textContent = text;
-  imagePanel.classList.remove('empty');
-}
-
-function hideSpinner() {
-  spinner.classList.remove('active');
-}
-
-function addImage(url) {
-  imagePanel.classList.remove('empty');
-  const img = document.createElement('img');
-  img.src = url;
-  img.alt = 'Generated image';
-  imagePanel.insertBefore(img, spinner);
-}
-
-function sendGenerate(prompt) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  const payload = JSON.stringify({ type: 'generate_image', prompt: prompt });
-  ws.send(payload);
-  log('\u2192 ' + payload, 'sent');
-}
-
-function sendRaw(json) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(json);
-  log('\u2192 ' + json, 'sent');
-}
-
-sendBtn.addEventListener('click', () => {
+submitBtn.addEventListener('click', () => {
   const text = promptEl.value.trim();
   if (!text) return;
-  sendGenerate(text);
+  sendMsg({ type: 'submit_prompt', prompt: text });
   promptEl.value = '';
+  promptEl.disabled = true;
+  submitBtn.disabled = true;
 });
 
 promptEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendBtn.click();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
 });
+
+bombTowerBtn.addEventListener('click', () => sendMsg({ type: 'bomb_hit', target: 'tower' }));
+bombShieldBtn.addEventListener('click', () => sendMsg({ type: 'bomb_hit', target: 'shield' }));
+shieldBtn.addEventListener('click', () => sendMsg({ type: 'spawn_shield' }));
 
 rawBtn.addEventListener('click', () => {
   const json = window.prompt('Enter raw JSON to send:');
-  if (json) sendRaw(json);
+  if (json) { ws.send(json); log('\u2192 ' + json, 'sent'); }
 });
 
 connect();

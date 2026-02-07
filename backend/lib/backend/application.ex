@@ -16,6 +16,7 @@ defmodule Backend.Application do
         {:_, [
           {"#{@obfuscating_prefix}/ws", Backend.WebsocketHandler, %{}},
           {"#{@obfuscating_prefix}/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
+          {"#{@obfuscating_prefix}/models/[...]", :cowboy_static, {:dir, static_dir <> "/static/models"}},
           {"#{@obfuscating_prefix}/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}},
           {"#{@obfuscating_prefix}/placeholders/[...]", :cowboy_static, {:dir, static_dir <> "/static/placeholders"}}
         ]}
@@ -24,12 +25,11 @@ defmodule Backend.Application do
     {:ok, _} =
       :cowboy.start_clear(:http, [{:port, port}], %{env: %{dispatch: dispatch}})
 
-    children =
-      if Application.get_env(:backend, :dev_mode) || Application.get_env(:backend, :mistral_api_key) do
-        [Backend.Mistral.AgentServer]
-      else
-        []
-      end
+    children = [
+      {Registry, keys: :unique, name: Backend.GameRegistry},
+      Backend.Matchmaker,
+      {DynamicSupervisor, name: Backend.GameRoomSupervisor, strategy: :one_for_one}
+    ]
 
     opts = [strategy: :one_for_one, name: Backend.Supervisor]
     Supervisor.start_link(children, opts)

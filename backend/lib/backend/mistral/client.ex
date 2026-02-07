@@ -31,6 +31,23 @@ defmodule Backend.Mistral.Client do
     |> handle_response()
   end
 
+  def chat(api_key, messages, opts \\ []) do
+    model = Keyword.get(opts, :model, "mistral-medium-latest")
+
+    body = %{
+      model: model,
+      messages: messages,
+      response_format: %{type: "json_object"}
+    }
+
+    Req.post("#{@base_url}/v1/chat/completions",
+      json: body,
+      headers: [{"authorization", "Bearer #{api_key}"}],
+      receive_timeout: 30_000
+    )
+    |> handle_response()
+  end
+
   def download_file(api_key, file_id) do
     Req.get("#{@base_url}/v1/files/#{file_id}/content",
       headers: [{"authorization", "Bearer #{api_key}"}],
