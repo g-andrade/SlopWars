@@ -28,6 +28,9 @@ defmodule Backend.ASB do
   - If one player gets high tower_hp, offset it with lower bomb_damage
   - Neither player should have a clear statistical advantage overall
 
+  NOTE ON CREATIVE FREEDOM:
+  - Bombs and shields can be any object and assume any form.
+
   Return ONLY the JSON object, no other text. Example structure:
   {"player1": {"tone": "aggressive", "bomb_damage": 8, "tower_hp": 150, ...}, "player2": {"tone": "defensive", "bomb_damage": 3, "tower_hp": 400, ...}}
   """
