@@ -86,7 +86,7 @@ Client -> {"type": "tower_hp", "hp": 280}
 Server -> both: {"type": "tower_hp", "player_number": 1, "target_player_number": 2, "hp": 280}
 Server -> both: {"type": "game_over", "winner_number": 1, "reason": "tower_destroyed"}  (if hp <= 0)
 
-Server -> {"type": "game_over", "winner_number": 1, "type": "opponent_disconnected"}
+Server -> {"type": "game_over", "winner_number": 1, "reason": "opponent_disconnected"}
 ```
 
 ## Tests
