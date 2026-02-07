@@ -3,12 +3,25 @@ defmodule Backend.WebsocketHandler do
 
   use TypedStruct
 
+  import ExUnit.Assertions
+
+  ####
+
+  if Mix.env() === :test do
+    @ping_interval_ms 500
+  else
+    @ping_interval_ms 10_000
+  end
+
+  ####
+
   typedstruct do
     field(:base_url, String.t(), enforce: true)
     field(:player_id, String.t(), enforce: true)
     field(:status, atom, enforce: true)
     field(:room_id, nil | String.t(), enforce: true)
     field(:player_number, pos_integer, enforce: true)
+    field(:ping_timer, reference, enforce: true)
   end
 
   ####
@@ -28,7 +41,8 @@ defmodule Backend.WebsocketHandler do
         player_id: player_id,
         status: :connected,
         room_id: nil,
-        player_number: nil
+        player_number: nil,
+        ping_timer: Process.send_after(self(), :send_ping, @ping_interval_ms)
       }
 
     {:cowboy_websocket, req, new_state}
@@ -72,6 +86,10 @@ defmodule Backend.WebsocketHandler do
     {:reply, {:pong, payload}, state}
   end
 
+  def websocket_handle(:pong, state) do
+    {:ok, state}
+  end
+
   def websocket_handle(_frame, state) do
     {:ok, state}
   end
@@ -84,6 +102,12 @@ defmodule Backend.WebsocketHandler do
 
   def websocket_info({:game_msg, payload}, state) do
     {:reply, {:text, Jason.encode!(payload)}, state}
+  end
+
+  def websocket_info(:send_ping, %__MODULE__{} = state) do
+    assert Process.cancel_timer(state.ping_timer) === false
+    state = %{state | ping_timer: Process.send_after(self(), :send_ping, @ping_interval_ms)}
+    {:reply, :ping, state}
   end
 
   def websocket_info(_info, state) do
