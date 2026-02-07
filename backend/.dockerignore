@@ -1,0 +1,16 @@
+_build/
+deps/
+cover/
+doc/
+tmp/
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.ez
+backend-*.tar
+erl_crash.dump
+priv/static/models/
+priv/static/images/
+.claude/
