@@ -36,7 +36,11 @@ defmodule Backend.Matchmaker do
     {:ok, _pid} =
       DynamicSupervisor.start_child(
         Backend.GameRoomSupervisor,
-        {Backend.GameRoom, {room_id, player1_pid, player2_pid}}
+        %{
+          id: :game_room,
+          start: {Backend.GameRoom, :start_link, [{room_id, player1_pid, player2_pid}]},
+          restart: :temporary
+        }
       )
 
     send(player1_pid, {:matched, room_id, 1})
