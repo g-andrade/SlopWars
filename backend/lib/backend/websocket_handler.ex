@@ -44,9 +44,6 @@ defmodule Backend.WebsocketHandler do
       {:ok, %{"type" => "shoot"} = msg} ->
         handle_relay(msg, state)
 
-      {:ok, %{"type" => "spawn_shield"} = msg} ->
-        handle_relay(msg, state)
-
       {:ok, %{"type" => "tower_hp", "hp" => hp}} ->
         handle_tower_hp(hp, state)
 

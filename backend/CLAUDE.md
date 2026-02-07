@@ -81,9 +81,6 @@ Opponent <- {"type": "player_update", "player": 1, "position": {x,y,z}, "rotatio
 Client -> {"type": "shoot", "direction": {x,y,z}, "power": 5}
 Opponent <- {"type": "shoot", "player": 1, "direction": {x,y,z}, "power": 5}
 
-Client -> {"type": "spawn_shield"}
-Opponent <- {"type": "spawn_shield", "player": 1}
-
 # State messages (backend tracks tower HP and detects game over)
 Client -> {"type": "tower_hp", "hp": 280}
 Server -> both: {"type": "tower_hp", "player": 1, "target_player": 2, "hp": 280}

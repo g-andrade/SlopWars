@@ -84,7 +84,6 @@
     <input id="prompt" type="text" placeholder="Enter your build prompt..." disabled />
     <button id="submit-btn" class="btn-primary" disabled>Submit Prompt</button>
     <button id="shoot-btn" class="btn-action" disabled>Shoot</button>
-    <button id="shield-btn" class="btn-shield" disabled>Spawn Shield</button>
     <input id="tower-hp-input" type="number" placeholder="Tower HP" style="min-width:80px;flex:0" disabled />
     <button id="tower-hp-btn" class="btn-action" disabled>Set Tower HP</button>
     <button id="pos-btn" class="btn-raw" disabled>Send Position</button>
@@ -100,7 +99,6 @@ const promptEl = document.getElementById('prompt');
 const joinBtn = document.getElementById('join-btn');
 const submitBtn = document.getElementById('submit-btn');
 const shootBtn = document.getElementById('shoot-btn');
-const shieldBtn = document.getElementById('shield-btn');
 const towerHpInput = document.getElementById('tower-hp-input');
 const towerHpBtn = document.getElementById('tower-hp-btn');
 const posBtn = document.getElementById('pos-btn');
@@ -141,7 +139,6 @@ function setPhase(phase) {
   promptEl.disabled = phase !== 'prompting';
   submitBtn.disabled = phase !== 'prompting';
   shootBtn.disabled = phase !== 'playing';
-  shieldBtn.disabled = phase !== 'playing';
   towerHpInput.disabled = phase !== 'playing';
   towerHpBtn.disabled = phase !== 'playing';
   posBtn.disabled = phase !== 'playing';
@@ -212,9 +209,6 @@ function handleMessage(msg) {
     case 'shoot':
       log(`Player ${msg.player} shot! ${JSON.stringify(msg)}`, 'system');
       break;
-    case 'spawn_shield':
-      log(`Player ${msg.player} spawned shield`, 'system');
-      break;
     case 'tower_hp':
       updateHpDisplay(msg);
       log(`Player ${msg.player} reports Player ${msg.target_player} tower HP: ${msg.hp}`, 'system');
@@ -282,7 +276,6 @@ promptEl.addEventListener('keydown', (e) => {
 });
 
 shootBtn.addEventListener('click', () => sendMsg({ type: 'shoot', direction: {x: 0, y: 1, z: 0}, power: 5 }));
-shieldBtn.addEventListener('click', () => sendMsg({ type: 'spawn_shield' }));
 towerHpBtn.addEventListener('click', () => {
   const hp = parseInt(towerHpInput.value, 10);
   if (!isNaN(hp)) sendMsg({ type: 'tower_hp', hp: hp });
