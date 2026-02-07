@@ -135,7 +135,7 @@ defmodule Backend.GameRoom do
   @impl true
   def handle_info({:asb_results, results}, %{phase: :analyzing} = state) do
     case results do
-      {{:ok, build1}, {:ok, build2}} ->
+      {:ok, build1, build2} ->
         state =
           state
           |> put_in([:players, 1, :build], build1)
@@ -205,9 +205,8 @@ defmodule Backend.GameRoom do
     prompt2 = state.players[2].prompt
 
     Task.start(fn ->
-      result1 = Backend.ASB.analyze(prompt1, base_url)
-      result2 = Backend.ASB.analyze(prompt2, base_url)
-      send(room_pid, {:asb_results, {result1, result2}})
+      result = Backend.ASB.analyze_both(prompt1, prompt2, base_url)
+      send(room_pid, {:asb_results, result})
     end)
   end
 

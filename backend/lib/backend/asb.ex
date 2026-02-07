@@ -1,6 +1,6 @@
 defmodule Backend.ASB do
   @moduledoc """
-  AI Slop Brain — analyzes player prompts and produces game builds.
+  AI Slop Brain — analyzes both players' prompts together and produces balanced game builds.
 
   Each build contains a tone classification, stat values for bomb/tower/shield,
   descriptive text for 3D asset generation, and model URLs.
@@ -9,11 +9,11 @@ defmodule Backend.ASB do
   require Logger
 
   @system_prompt """
-  You are the AI Slop Brain for a 2-player artillery game. A player has submitted a prompt that defines their "build" — their bombs, tower, and shields.
+  You are the AI Slop Brain for a 2-player artillery game. Two players have each submitted a prompt that defines their "build" — their bombs, tower, and shields.
 
-  Analyze the prompt and return a JSON object with these exact fields:
+  Analyze BOTH prompts together and return a JSON object with "player1" and "player2" keys. Each player object must have these exact fields:
 
-  - "tone": one of "aggressive", "balanced", or "defensive" based on the mood/meaning of the prompt
+  - "tone": one of "aggressive", "balanced", or "defensive" based on the mood/meaning of that player's prompt
   - "bomb_damage": integer 1-10 (higher for aggressive prompts)
   - "tower_hp": integer 100-500 (higher for defensive prompts)
   - "shield_hp": integer 1-3 (higher for defensive prompts)
@@ -21,29 +21,40 @@ defmodule Backend.ASB do
   - "tower_description": a short, vivid description of what the tower looks like (themed to the prompt)
   - "shield_description": a short, vivid description of what the shield looks like (themed to the prompt)
 
-  Tune the stats based on tone:
-  - Aggressive: high bomb_damage (7-10), low tower_hp (100-250), low shield_hp (1)
-  - Defensive: low bomb_damage (1-4), high tower_hp (350-500), high shield_hp (2-3)
-  - Balanced: medium everything (4-7 damage, 200-400 hp, 1-2 shield)
+  IMPORTANT BALANCING RULES:
+  - Each build must stay thematic to its player's prompt
+  - Stats should be balanced: the total power of each build should be roughly equal
+  - If one player gets high bomb_damage, offset it with lower tower_hp or shield_hp
+  - If one player gets high tower_hp, offset it with lower bomb_damage
+  - Neither player should have a clear statistical advantage overall
 
-  Return ONLY the JSON object, no other text.
+  Return ONLY the JSON object, no other text. Example structure:
+  {"player1": {"tone": "aggressive", "bomb_damage": 8, "tower_hp": 150, ...}, "player2": {"tone": "defensive", "bomb_damage": 3, "tower_hp": 400, ...}}
   """
 
-  def analyze(prompt, base_url) do
+  def analyze_both(prompt1, prompt2, base_url) do
     if dev_mode?() do
-      analyze_dev(prompt, base_url)
+      analyze_both_dev(prompt1, prompt2, base_url)
     else
-      analyze_prod(prompt, base_url)
+      analyze_both_prod(prompt1, prompt2, base_url)
     end
   end
 
-  defp analyze_dev(prompt, base_url) do
-    Logger.notice("[ASB] Dev mode analysis for: #{inspect(prompt)}")
+  defp analyze_both_dev(prompt1, prompt2, base_url) do
+    Logger.notice("[ASB] Dev mode analysis for: #{inspect(prompt1)} vs #{inspect(prompt2)}")
     delay = 1000 + :rand.uniform(1000)
     Process.sleep(delay)
 
-    tone = Enum.random(["aggressive", "balanced", "defensive"])
+    # Generate correlated/balanced builds: one aggressive, one defensive
+    {tone1, tone2} = Enum.random([{"aggressive", "defensive"}, {"defensive", "aggressive"}, {"balanced", "balanced"}])
 
+    build1 = dev_build(tone1, prompt1, base_url)
+    build2 = dev_build(tone2, prompt2, base_url)
+
+    {:ok, build1, build2}
+  end
+
+  defp dev_build(tone, prompt, base_url) do
     {bomb_damage, tower_hp, shield_hp} =
       case tone do
         "aggressive" -> {Enum.random(7..10), Enum.random(100..250), 1}
@@ -51,7 +62,7 @@ defmodule Backend.ASB do
         "balanced" -> {Enum.random(4..7), Enum.random(200..400), Enum.random(1..2)}
       end
 
-    build = %{
+    %{
       "tone" => tone,
       "bomb_damage" => bomb_damage,
       "tower_hp" => tower_hp,
@@ -63,35 +74,38 @@ defmodule Backend.ASB do
       "tower_model_url" => "#{base_url}/models/placeholder.glb",
       "shield_model_url" => "#{base_url}/models/placeholder.glb"
     }
-
-    {:ok, build}
   end
 
-  defp analyze_prod(prompt, base_url) do
+  defp analyze_both_prod(prompt1, prompt2, base_url) do
     api_key = Application.fetch_env!(:backend, :mistral_api_key)
 
     messages = [
       %{role: "system", content: @system_prompt},
-      %{role: "user", content: prompt}
+      %{role: "user", content: "Player 1 prompt: #{prompt1}\nPlayer 2 prompt: #{prompt2}"}
     ]
 
-    Logger.notice("[ASB] Analyzing prompt via Mistral: #{inspect(prompt)}")
+    Logger.notice("[ASB] Analyzing both prompts via Mistral: #{inspect(prompt1)} vs #{inspect(prompt2)}")
 
     case Backend.Mistral.Client.chat(api_key, messages) do
       {:ok, %{"choices" => [%{"message" => %{"content" => content}} | _]}} ->
         case Jason.decode(content) do
-          {:ok, parsed} ->
-            build =
-              parsed
-              |> Map.take(["tone", "bomb_damage", "tower_hp", "shield_hp",
-                           "bomb_description", "tower_description", "shield_description"])
-              |> Map.merge(%{
-                "bomb_model_url" => "#{base_url}/models/placeholder.glb",
-                "tower_model_url" => "#{base_url}/models/placeholder.glb",
-                "shield_model_url" => "#{base_url}/models/placeholder.glb"
-              })
+          {:ok, %{"player1" => p1, "player2" => p2}} ->
+            build_fields = ["tone", "bomb_damage", "tower_hp", "shield_hp",
+                            "bomb_description", "tower_description", "shield_description"]
+            model_urls = %{
+              "bomb_model_url" => "#{base_url}/models/placeholder.glb",
+              "tower_model_url" => "#{base_url}/models/placeholder.glb",
+              "shield_model_url" => "#{base_url}/models/placeholder.glb"
+            }
 
-            {:ok, build}
+            build1 = p1 |> Map.take(build_fields) |> Map.merge(model_urls)
+            build2 = p2 |> Map.take(build_fields) |> Map.merge(model_urls)
+
+            {:ok, build1, build2}
+
+          {:ok, _unexpected} ->
+            Logger.error("[ASB] Mistral JSON missing player1/player2 keys")
+            {:error, "Unexpected AI response structure"}
 
           {:error, reason} ->
             Logger.error("[ASB] Failed to parse Mistral JSON: #{inspect(reason)}")
