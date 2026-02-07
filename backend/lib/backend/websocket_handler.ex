@@ -1,8 +1,20 @@
 defmodule Backend.WebsocketHandler do
   @behaviour :cowboy_websocket
 
+  use TypedStruct
+
+  typedstruct do
+    field(:base_url, String.t(), enforce: true)
+    field(:player_id, String.t(), enforce: true)
+    field(:status, atom, enforce: true)
+    field(:room_id, nil | String.t(), enforce: true)
+    field(:player_number, pos_integer, enforce: true)
+  end
+
+  ####
+
   @impl true
-  def init(req, state) do
+  def init(req, nil) do
     host = :cowboy_req.host(req)
     port = :cowboy_req.port(req)
     path = :cowboy_req.path(req)
@@ -11,12 +23,13 @@ defmodule Backend.WebsocketHandler do
     player_id = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
 
     new_state =
-      state
-      |> Map.put(:base_url, base_url)
-      |> Map.put(:player_id, player_id)
-      |> Map.put(:status, :connected)
-      |> Map.put(:room_id, nil)
-      |> Map.put(:player_number, nil)
+      %__MODULE__{
+        base_url: base_url,
+        player_id: player_id,
+        status: :connected,
+        room_id: nil,
+        player_number: nil
+      }
 
     {:cowboy_websocket, req, new_state}
   end
@@ -64,7 +77,7 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
-  def websocket_info({:matched, room_id, player_number}, state) do
+  def websocket_info({:matched, room_id, player_number}, %__MODULE__{} = state) do
     state = %{state | status: :in_game, room_id: room_id, player_number: player_number}
     reply(%{"type" => "matched", "room_id" => room_id, "player_number" => player_number}, state)
   end
@@ -78,7 +91,7 @@ defmodule Backend.WebsocketHandler do
   end
 
   @impl true
-  def terminate(_reason, _req, state) do
+  def terminate(_reason, _req, %__MODULE__{} = state) do
     case state.status do
       :in_queue ->
         Backend.Matchmaker.leave_queue(self())
@@ -95,7 +108,7 @@ defmodule Backend.WebsocketHandler do
 
   # -- Private handlers --
 
-  defp handle_join_queue(state) do
+  defp handle_join_queue(%__MODULE__{} = state) do
     case Backend.Matchmaker.join_queue(self(), state.player_id) do
       {:ok, :waiting} ->
         state = %{state | status: :in_queue}
@@ -107,7 +120,7 @@ defmodule Backend.WebsocketHandler do
     end
   end
 
-  defp handle_submit_prompt(prompt, state) do
+  defp handle_submit_prompt(prompt, %__MODULE__{} = state) do
     if state.status == :in_game and state.room_id != nil do
       Backend.GameRoom.submit_prompt(state.room_id, state.player_number, prompt, state.base_url)
       {:ok, state}
@@ -116,7 +129,7 @@ defmodule Backend.WebsocketHandler do
     end
   end
 
-  defp handle_relay(msg, state) do
+  defp handle_relay(msg, %__MODULE__{} = state) do
     if state.status == :in_game and state.room_id != nil do
       Backend.GameRoom.relay_to_opponent(state.room_id, state.player_number, msg)
       {:ok, state}
@@ -125,7 +138,7 @@ defmodule Backend.WebsocketHandler do
     end
   end
 
-  defp handle_tower_hp(hp, state) do
+  defp handle_tower_hp(hp, %__MODULE__{} = state) do
     if state.status == :in_game and state.room_id != nil do
       Backend.GameRoom.tower_hp_update(state.room_id, state.player_number, hp)
       {:ok, state}

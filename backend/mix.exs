@@ -23,9 +23,10 @@ defmodule Backend.MixProject do
   defp deps do
     [
       {:cowboy, "~> 2.12"},
+      {:gun, "~> 2.1", only: :test},
       {:jason, "~> 1.4"},
       {:req, "~> 0.5"},
-      {:gun, "~> 2.1", only: :test}
+      {:typed_struct, "~> 0.3"}
     ]
   end
 end

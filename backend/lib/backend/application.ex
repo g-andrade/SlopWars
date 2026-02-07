@@ -14,7 +14,7 @@ defmodule Backend.Application do
     dispatch =
       :cowboy_router.compile([
         {:_, [
-          {"#{@obfuscating_prefix}/ws", Backend.WebsocketHandler, %{}},
+          {"#{@obfuscating_prefix}/ws", Backend.WebsocketHandler, nil},
           {"#{@obfuscating_prefix}/debug", :cowboy_static, {:file, static_dir <> "/static/debug.html"}},
           {"#{@obfuscating_prefix}/models/[...]", :cowboy_static, {:dir, static_dir <> "/static/models"}},
           {"#{@obfuscating_prefix}/images/[...]", :cowboy_static, {:dir, static_dir <> "/static/images"}},
