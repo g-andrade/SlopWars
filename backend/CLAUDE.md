@@ -78,8 +78,8 @@ Server -> {"type": "builds_ready",
 Client -> {"type": "player_update", "position": {x,y,z}, "rotation": {x,y,z}}
 Opponent <- {"type": "player_update", "player": 1, "position": {x,y,z}, "rotation": {x,y,z}}
 
-Client -> {"type": "shoot", "direction": {x,y,z}, "power": 5}
-Opponent <- {"type": "shoot", "player": 1, "direction": {x,y,z}, "power": 5}
+Client -> {"type": "shoot", "power": 5}
+Opponent <- {"type": "shoot", "player": 1, "power": 5}
 
 # State messages (backend tracks tower HP and detects game over)
 Client -> {"type": "tower_hp", "hp": 280}

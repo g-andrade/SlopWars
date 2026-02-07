@@ -275,7 +275,7 @@ promptEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
 });
 
-shootBtn.addEventListener('click', () => sendMsg({ type: 'shoot', direction: {x: 0, y: 1, z: 0}, power: 5 }));
+shootBtn.addEventListener('click', () => sendMsg({ type: 'shoot', power: 5 }));
 towerHpBtn.addEventListener('click', () => {
   const hp = parseInt(towerHpInput.value, 10);
   if (!isNaN(hp)) sendMsg({ type: 'tower_hp', hp: hp });
