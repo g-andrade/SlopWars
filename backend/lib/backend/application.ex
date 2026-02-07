@@ -28,10 +28,11 @@ defmodule Backend.Application do
     children = [
       {Registry, keys: :unique, name: Backend.GameRegistry},
       Backend.Matchmaker,
+      Backend.AssetManager,
       {DynamicSupervisor, name: Backend.GameRoomSupervisor, strategy: :one_for_one}
     ]
 
-    opts = [strategy: :one_for_one, name: Backend.Supervisor]
+    opts = [strategy: :rest_for_one, name: Backend.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

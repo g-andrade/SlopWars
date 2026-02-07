@@ -2,7 +2,7 @@ defmodule Backend.ASBTest do
   use ExUnit.Case
 
   test "dev mode analyze_both returns two valid builds" do
-    {:ok, build1, build2} = Backend.ASB.analyze_both("No prisoners!", "Happy days!", "http://localhost:8080/test")
+    {:ok, build1, build2} = Backend.ASB.analyze_both("No prisoners!", "Happy days!")
 
     for build <- [build1, build2] do
       assert build["tone"] in ["aggressive", "balanced", "defensive"]
@@ -12,9 +12,6 @@ defmodule Backend.ASBTest do
       assert is_binary(build["bomb_description"])
       assert is_binary(build["tower_description"])
       assert is_binary(build["shield_description"])
-      assert build["bomb_model_url"] == "http://localhost:8080/test/models/placeholder.glb"
-      assert build["tower_model_url"] == "http://localhost:8080/test/models/placeholder.glb"
-      assert build["shield_model_url"] == "http://localhost:8080/test/models/placeholder.glb"
     end
   end
 end

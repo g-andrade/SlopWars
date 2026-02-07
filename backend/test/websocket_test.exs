@@ -86,13 +86,17 @@ defmodule Backend.WebsocketTest do
     send_json(conn2, ref2, %{"type" => "submit_prompt", "prompt" => "Happy days!"})
 
     # Collect all messages until builds_ready (order may vary)
-    messages = collect_messages(conn1, ref1, 5, 5000)
+    messages = collect_messages(conn1, ref1, 24, 5000)
 
     types = Enum.map(messages, & &1["type"])
     assert "prompt_received" in types
     assert "both_prompts_in" in types
     assert "analyzing" in types
+    assert "generating_assets" in types
     assert "builds_ready" in types
+    assert "assets_progress" in types
+    assert "asset_ready" in types
+    assert "playing" in types
 
     builds_msg = Enum.find(messages, & &1["type"] == "builds_ready")
     assert is_map(builds_msg["your_build"])
@@ -100,7 +104,6 @@ defmodule Backend.WebsocketTest do
     assert builds_msg["your_build"]["bomb_damage"] in 1..10
     assert builds_msg["your_build"]["tower_hp"] in 100..500
     assert builds_msg["your_build"]["shield_hp"] in 1..3
-    assert is_binary(builds_msg["your_build"]["bomb_model_url"])
 
     :gun.close(conn1)
     :gun.close(conn2)
@@ -167,8 +170,8 @@ defmodule Backend.WebsocketTest do
     send_json(conn2, ref2, %{"type" => "submit_prompt", "prompt" => "Test 2"})
 
     # Drain all messages until builds_ready for both players
-    _msgs1 = collect_until(conn1, ref1, "builds_ready", 5000)
-    _msgs2 = collect_until(conn2, ref2, "builds_ready", 5000)
+    _msgs1 = collect_until(conn1, ref1, "playing", 5000)
+    _msgs2 = collect_until(conn2, ref2, "playing", 5000)
   end
 
   defp collect_until(conn_pid, stream_ref, target_type, timeout) do

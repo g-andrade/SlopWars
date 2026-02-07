@@ -32,15 +32,15 @@ defmodule Backend.ASB do
   {"player1": {"tone": "aggressive", "bomb_damage": 8, "tower_hp": 150, ...}, "player2": {"tone": "defensive", "bomb_damage": 3, "tower_hp": 400, ...}}
   """
 
-  def analyze_both(prompt1, prompt2, base_url) do
+  def analyze_both(prompt1, prompt2) do
     if dev_mode?() do
-      analyze_both_dev(prompt1, prompt2, base_url)
+      analyze_both_dev(prompt1, prompt2)
     else
-      analyze_both_prod(prompt1, prompt2, base_url)
+      analyze_both_prod(prompt1, prompt2)
     end
   end
 
-  defp analyze_both_dev(prompt1, prompt2, base_url) do
+  defp analyze_both_dev(prompt1, prompt2) do
     Logger.notice("[ASB] Dev mode analysis for: #{inspect(prompt1)} vs #{inspect(prompt2)}")
     delay = 1000 + :rand.uniform(1000)
     Process.sleep(delay)
@@ -48,13 +48,13 @@ defmodule Backend.ASB do
     # Generate correlated/balanced builds: one aggressive, one defensive
     {tone1, tone2} = Enum.random([{"aggressive", "defensive"}, {"defensive", "aggressive"}, {"balanced", "balanced"}])
 
-    build1 = dev_build(tone1, prompt1, base_url)
-    build2 = dev_build(tone2, prompt2, base_url)
+    build1 = dev_build(tone1, prompt1)
+    build2 = dev_build(tone2, prompt2)
 
     {:ok, build1, build2}
   end
 
-  defp dev_build(tone, prompt, base_url) do
+  defp dev_build(tone, prompt) do
     {bomb_damage, tower_hp, shield_hp} =
       case tone do
         "aggressive" -> {Enum.random(7..10), Enum.random(100..250), 1}
@@ -69,14 +69,11 @@ defmodule Backend.ASB do
       "shield_hp" => shield_hp,
       "bomb_description" => "A sloppy #{tone} projectile inspired by: #{prompt}",
       "tower_description" => "A #{tone} tower of slop themed around: #{prompt}",
-      "shield_description" => "A #{tone} shield of slop based on: #{prompt}",
-      "bomb_model_url" => "#{base_url}/models/placeholder.glb",
-      "tower_model_url" => "#{base_url}/models/placeholder.glb",
-      "shield_model_url" => "#{base_url}/models/placeholder.glb"
+      "shield_description" => "A #{tone} shield of slop based on: #{prompt}"
     }
   end
 
-  defp analyze_both_prod(prompt1, prompt2, base_url) do
+  defp analyze_both_prod(prompt1, prompt2) do
     api_key = Application.fetch_env!(:backend, :mistral_api_key)
 
     messages = [
@@ -92,14 +89,9 @@ defmodule Backend.ASB do
           {:ok, %{"player1" => p1, "player2" => p2}} ->
             build_fields = ["tone", "bomb_damage", "tower_hp", "shield_hp",
                             "bomb_description", "tower_description", "shield_description"]
-            model_urls = %{
-              "bomb_model_url" => "#{base_url}/models/placeholder.glb",
-              "tower_model_url" => "#{base_url}/models/placeholder.glb",
-              "shield_model_url" => "#{base_url}/models/placeholder.glb"
-            }
 
-            build1 = p1 |> Map.take(build_fields) |> Map.merge(model_urls)
-            build2 = p2 |> Map.take(build_fields) |> Map.merge(model_urls)
+            build1 = p1 |> Map.take(build_fields)
+            build2 = p2 |> Map.take(build_fields)
 
             {:ok, build1, build2}
 

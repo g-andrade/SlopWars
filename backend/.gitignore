@@ -27,3 +27,6 @@ backend-*.tar
 
 # Claude local settings
 /.claude/settings.local.json
+
+# Generated models
+/priv/static/models/
