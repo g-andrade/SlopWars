@@ -5,6 +5,8 @@ defmodule Backend.GameRoom do
   Lifecycle: :prompting → :generating_assets → :playing → :game_over
   """
 
+  import ExUnit.Assertions
+
   use TypedStruct
 
   ########
@@ -42,6 +44,10 @@ defmodule Backend.GameRoom do
   end
 
   @type pending_asset :: PendingAsset.t
+
+  ########
+
+  @total_assets 6
 
   ########
 
@@ -282,6 +288,8 @@ defmodule Backend.GameRoom do
           |> start_generating_asset(1, "shield", build1["shield_description"])
           |> start_generating_asset(2, "shield", build2["shield_description"])
 
+        assert map_size(state.pending_assets) === 6
+
         {:noreply, state}
         
       {:error, reason} ->
@@ -322,9 +330,9 @@ defmodule Backend.GameRoom do
     list = Map.values(pending_assets)
     {p1_assets, p2_assets} = Enum.split_with(list, &(&1.player_number === 1))
 
-    overall_progress = assets_collective_progress(list)
-    p1_progress = assets_collective_progress(p1_assets)
-    p2_progress = assets_collective_progress(p2_assets)
+    overall_progress = assets_collective_progress(list, @total_assets)
+    p1_progress = assets_collective_progress(p1_assets, div(@total_assets, 2))
+    p2_progress = assets_collective_progress(p2_assets, div(@total_assets, 2))
 
     Logger.notice(
       """
@@ -342,11 +350,11 @@ defmodule Backend.GameRoom do
     })
   end
 
-  defp assets_collective_progress([]), do: 100.0
+  defp assets_collective_progress([], _), do: 100.0
 
-  defp assets_collective_progress(list) do
+  defp assets_collective_progress(list, total_assets) do
     sum = list |> Enum.map(&(&1.progress)) |> Enum.sum()
 
-    sum / length(list)
+    sum / total_assets
   end
 end
