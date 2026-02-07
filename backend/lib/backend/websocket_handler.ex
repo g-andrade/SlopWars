@@ -100,6 +100,20 @@ defmodule Backend.WebsocketHandler do
     reply(%{"type" => "matched", "room_id" => room_id, "player_number" => player_number}, state)
   end
 
+  def websocket_info({:game_msg, payload}, state) when is_tuple(payload) do
+    case payload do
+      {:asset_ready, player_number, name, url} ->
+        reply(
+          %{
+            "type" => "asset_ready", 
+            "player_number" => player_number, 
+            "name" => name, 
+            "url" => resolve_url(url, state.base_url)
+          },
+          state)
+    end
+  end
+
   def websocket_info({:game_msg, payload}, state) do
     {:reply, {:text, Jason.encode!(payload)}, state}
   end
@@ -146,7 +160,7 @@ defmodule Backend.WebsocketHandler do
 
   defp handle_submit_prompt(prompt, %__MODULE__{} = state) do
     if state.status == :in_game and state.room_id != nil do
-      Backend.GameRoom.submit_prompt(state.room_id, state.player_number, prompt, state.base_url)
+      Backend.GameRoom.submit_prompt(state.room_id, state.player_number, prompt)
       {:ok, state}
     else
       reply(%{"type" => "error", "message" => "not in a game"}, state)
@@ -173,5 +187,13 @@ defmodule Backend.WebsocketHandler do
 
   defp reply(message, state) do
     {:reply, {:text, Jason.encode!(message)}, state}
+  end
+
+  defp resolve_url(url, base_url) do
+    if String.starts_with?(String.downcase(url), ["http://", "https://"]) do
+      url
+    else
+      "#{base_url}/#{url}"
+    end
   end
 end

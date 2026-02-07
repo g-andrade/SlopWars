@@ -2,8 +2,54 @@ defmodule Backend.GameRoom do
   @moduledoc """
   GenServer managing a single game between two players.
 
-  Lifecycle: :prompting → :analyzing → :playing → :game_over
+  Lifecycle: :prompting → :generating_assets → :playing → :game_over
   """
+
+  import ExUnit.Assertions
+
+  use TypedStruct
+
+  ########
+
+  typedstruct do
+    field(:room_id, String.t, enforce: true)
+    field(:phase, phase, enforce: true)
+    field(:players, %{required(1) => player, required(2) => player}, enforce: true)
+    field(:towers, %{required(1) => nil | number, required(2) => nil | number}, enforce: true)
+    field(:pending_assets, %{reference => pending_asset}, enforce: true)
+  end
+
+  @typep phase :: :prompting | :generating_assets | :playing | :game_over
+
+  ##
+
+  defmodule Player do
+    typedstruct do
+      field(:pid, pid, enforce: true)
+      field(:prompt, nil | String.t, enforce: true)
+      field(:build, nil | map, enforce: true)
+    end
+  end
+
+  @typep player :: Player.t
+
+  ##
+
+  defmodule PendingAsset do
+    typedstruct do
+      field(:player_number, pos_integer, enforce: true)
+      field(:name, String.t(), enforce: true)
+      field(:progress, number, enforce: true)
+    end
+  end
+
+  @type pending_asset :: PendingAsset.t
+
+  ########
+
+  @total_assets 6
+
+  ########
 
   use GenServer
   require Logger
@@ -14,8 +60,8 @@ defmodule Backend.GameRoom do
     )
   end
 
-  def submit_prompt(room_id, player_number, prompt, base_url) do
-    GenServer.cast(via(room_id), {:submit_prompt, player_number, prompt, base_url})
+  def submit_prompt(room_id, player_number, prompt) do
+    GenServer.cast(via(room_id), {:submit_prompt, player_number, prompt})
   end
 
   def relay_to_opponent(room_id, from_player, message) do
@@ -39,15 +85,15 @@ defmodule Backend.GameRoom do
     Process.monitor(player1_pid)
     Process.monitor(player2_pid)
 
-    state = %{
+    state = %__MODULE__{
       room_id: room_id,
       phase: :prompting,
-      base_url: nil,
       players: %{
-        1 => %{pid: player1_pid, prompt: nil, build: nil},
-        2 => %{pid: player2_pid, prompt: nil, build: nil}
+        1 => %Player{pid: player1_pid, prompt: nil, build: nil},
+        2 => %Player{pid: player2_pid, prompt: nil, build: nil}
       },
-      towers: %{1 => nil, 2 => nil}
+      towers: %{1 => nil, 2 => nil},
+      pending_assets: %{}
     }
 
     Logger.notice("[Room #{room_id}] Game created")
@@ -55,31 +101,29 @@ defmodule Backend.GameRoom do
   end
 
   @impl true
-  def handle_cast({:submit_prompt, player_number, prompt, base_url}, %{phase: :prompting} = state) do
+  def handle_cast({:submit_prompt, player_number, prompt}, %__MODULE__{phase: :prompting} = state) do
     Logger.notice("[Room #{state.room_id}] Player #{player_number} submitted prompt")
 
-    state =
-      state
-      |> put_in([:players, player_number, :prompt], prompt)
-      |> then(fn s -> if s.base_url == nil, do: %{s | base_url: base_url}, else: s end)
+    player = %Player{} = Map.fetch!(state.players, player_number)
+    player = %{player | prompt: prompt}
+    state = %{state | players: %{state.players | player_number => player}}
 
     broadcast(state, %{"type" => "prompt_received", "player_number" => player_number})
 
     if both_prompts_in?(state) do
       broadcast(state, %{"type" => "both_prompts_in"})
       broadcast(state, %{"type" => "analyzing"})
-      start_analysis(state)
-      {:noreply, %{state | phase: :analyzing}}
+      handle_analysis(state)
     else
       {:noreply, state}
     end
   end
 
-  def handle_cast({:submit_prompt, _player_number, _prompt, _base_url}, state) do
+  def handle_cast({:submit_prompt, _player_number, _prompt}, state) do
     {:noreply, state}
   end
 
-  def handle_cast({:relay_to_opponent, from_player, message}, %{phase: :playing} = state) do
+  def handle_cast({:relay_to_opponent, from_player, message}, %__MODULE__{phase: :playing} = state) do
     to_player = opponent(from_player)
     relay = Map.put(message, "player_number", from_player)
     send(state.players[to_player].pid, {:game_msg, relay})
@@ -90,10 +134,11 @@ defmodule Backend.GameRoom do
     {:noreply, state}
   end
 
-  def handle_cast({:tower_hp_update, from_player, hp}, %{phase: :playing} = state) do
+  def handle_cast({:tower_hp_update, from_player, hp}, %__MODULE__{phase: :playing} = state) do
     target_player = opponent(from_player)
     hp = max(0, hp)
-    state = put_in(state, [:towers, target_player], hp)
+
+    state = %{state | towers: %{state.towers | target_player => hp}}
 
     broadcast(state, %{
       "type" => "tower_hp",
@@ -119,7 +164,7 @@ defmodule Backend.GameRoom do
     {:noreply, state}
   end
 
-  def handle_cast({:player_disconnected, player_number}, state) do
+  def handle_cast({:player_disconnected, player_number}, %__MODULE__{} = state) do
     winner = opponent(player_number)
     Logger.notice("[Room #{state.room_id}] Player #{player_number} disconnected, player #{winner} wins")
 
@@ -133,38 +178,42 @@ defmodule Backend.GameRoom do
   end
 
   @impl true
-  def handle_info({:asb_results, results}, %{phase: :analyzing} = state) do
-    case results do
-      {:ok, build1, build2} ->
-        state =
-          state
-          |> put_in([:players, 1, :build], build1)
-          |> put_in([:players, 2, :build], build2)
-          |> put_in([:towers, 1], build1["tower_hp"])
-          |> put_in([:towers, 2], build2["tower_hp"])
+  def handle_info({await_ref, status}, %__MODULE__{pending_assets: pending_assets} = state) 
+  when is_map_key(pending_assets, await_ref) 
+  do
+    pending_asset = %PendingAsset{} = Map.fetch!(pending_assets, await_ref)
 
-        send(state.players[1].pid, {:game_msg, %{
-          "type" => "builds_ready",
-          "your_build" => build1,
-          "opponent_build" => build2
-        }})
+    case status do
+      {:progress, percentage} ->
+        pending_asset = %{pending_asset | progress: percentage}
+        state = %{state | pending_assets: %{pending_assets | await_ref => pending_asset}}
 
-        send(state.players[2].pid, {:game_msg, %{
-          "type" => "builds_ready",
-          "your_build" => build2,
-          "opponent_build" => build1
-        }})
+        notify_assets_progress(state)
+        {:noreply, state}
 
-        Logger.notice("[Room #{state.room_id}] Builds ready, game starting")
-        {:noreply, %{state | phase: :playing}}
+      {:done, files} ->
+        [%Backend.AssetManager.FileInfo{} = file_info] = Enum.filter(files, fn %Backend.AssetManager.FileInfo{} = file_info -> file_info.name === "base_basic_pbr.glb" end)
 
-      _ ->
-        broadcast(state, %{"type" => "error", "message" => "Failed to analyze prompts"})
-        {:stop, :normal, %{state | phase: :game_over}}
+        notify_asset_ready(state, pending_asset, file_info.url)
+        state = %{state | pending_assets: Map.delete(pending_assets, await_ref)}
+
+        notify_assets_progress(state)
+
+        if map_size(state.pending_assets) === 0 do
+          Logger.notice("[Room #{state.room_id}] Build assets generated, game starting")
+          broadcast(state, %{"type" => "playing"})
+          {:noreply, %{state | phase: :playing}}
+        else
+          {:noreply, state}
+        end
+
+      :error ->
+        broadcast(state, %{"type" => "error", "message" => "Error generating assets"})
+        {:stop, :error_generating_assets, state}
     end
   end
 
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, %__MODULE__{} = state) do
     case find_player_by_pid(state, pid) do
       nil ->
         {:noreply, state}
@@ -194,32 +243,119 @@ defmodule Backend.GameRoom do
 
   # -- Private --
 
-  defp both_prompts_in?(state) do
+  defp both_prompts_in?(%__MODULE__{} = state) do
     state.players[1].prompt != nil and state.players[2].prompt != nil
   end
 
-  defp start_analysis(state) do
-    room_pid = self()
-    base_url = state.base_url
+  defp handle_analysis(%__MODULE__{} = state) do
     prompt1 = state.players[1].prompt
     prompt2 = state.players[2].prompt
 
-    Task.start(fn ->
-      result = Backend.ASB.analyze_both(prompt1, prompt2, base_url)
-      send(room_pid, {:asb_results, result})
-    end)
+    case Backend.ASB.analyze_both(prompt1, prompt2) do
+      {:ok, build1, build2} ->
+        player1 = %Player{} = state.players[1]
+        player2 = %Player{} = state.players[2]
+
+        player1 = %{player1 | build: build1}
+        player2 = %{player2 | build: build2}
+
+        broadcast(state, %{"type" => "generating_assets"})
+
+        send(player1.pid, {:game_msg, %{
+            "type" => "builds_ready",
+            "your_build" => build1,
+            "opponent_build" => build2
+        }})
+
+        send(player2.pid, {:game_msg, %{
+            "type" => "builds_ready",
+            "your_build" => build2,
+            "opponent_build" => build1
+        }})
+
+        state = %{state |
+          phase: :generating_assets,
+          players: %{state.players | 1 => player1, 2 => player2},
+          towers: %{state.towers | 1 => build1["tower_hp"], 2 => build2["tower_hp"]}
+        }
+
+        state = 
+          state
+          |> start_generating_asset(1, "bomb", build1["bomb_description"])
+          |> start_generating_asset(2, "bomb", build2["bomb_description"])
+          |> start_generating_asset(1, "tower", build1["tower_description"])
+          |> start_generating_asset(2, "tower", build2["tower_description"])
+          |> start_generating_asset(1, "shield", build1["shield_description"])
+          |> start_generating_asset(2, "shield", build2["shield_description"])
+
+        assert map_size(state.pending_assets) === 6
+
+        {:noreply, state}
+        
+      {:error, reason} ->
+        Logger.error("Failed to analyze prompts: #{inspect reason}")
+        broadcast(state, %{"type" => "error", "message" => "Failed to analyze prompts"})
+        {:stop, :normal, %{state | phase: :game_over}}
+    end
+  end
+
+  defp start_generating_asset(%__MODULE__{phase: :generating_assets} = state, player_number, name, description) do
+    {:await, await_ref} = Backend.AssetManager.async_generate(description)
+
+    pending_asset = %PendingAsset{player_number: player_number, name: name, progress: 0.0}
+
+    %{state | pending_assets: Map.put(state.pending_assets, await_ref, pending_asset)}
   end
 
   defp opponent(1), do: 2
   defp opponent(2), do: 1
 
-  defp find_player_by_pid(state, pid) do
+  defp find_player_by_pid(%__MODULE__{} = state, pid) do
     Enum.find(state.players, fn {_num, player} -> player.pid == pid end)
   end
 
-  defp broadcast(state, message) do
+  defp broadcast(%__MODULE__{} = state, message) do
     Enum.each(state.players, fn {_num, player} ->
       send(player.pid, {:game_msg, message})
     end)
+  end
+
+  ###
+  
+  defp notify_asset_ready(%__MODULE__{} = state, %PendingAsset{} = pending_asset, url) do
+    broadcast(state, {:asset_ready, pending_asset.player_number, pending_asset.name, url})
+  end
+
+  defp notify_assets_progress(%__MODULE__{pending_assets: pending_assets} = state) do
+    list = Map.values(pending_assets)
+    {p1_assets, p2_assets} = Enum.split_with(list, &(&1.player_number === 1))
+
+    overall_progress = assets_collective_progress(list, @total_assets)
+    p1_progress = assets_collective_progress(p1_assets, div(@total_assets, 2))
+    p2_progress = assets_collective_progress(p2_assets, div(@total_assets, 2))
+
+    Logger.notice(
+      """
+      [Match] Asset generation progress:
+      * overall: #{overall_progress}
+      * player1: #{p1_progress}
+      * player2: #{p2_progress}
+      """)
+
+    broadcast(state, %{
+      "type" => "assets_progress", 
+      "overall" => overall_progress,
+      "player1" => p1_progress,
+      "player2" => p2_progress
+    })
+  end
+
+  defp assets_collective_progress([], _), do: 100.0
+
+  defp assets_collective_progress(list, total_assets) when length(list) <= total_assets do
+    sum = list |> Enum.map(&(&1.progress)) |> Enum.sum()
+
+    amount_completed = total_assets - length(list)
+    (100.0 * ((amount_completed / total_assets) + (sum / (100 * total_assets))))
   end
 end
