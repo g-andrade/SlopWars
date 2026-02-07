@@ -138,7 +138,7 @@ defmodule Backend.WebsocketTest do
     assert "tower_hp" in types
     assert "game_over" in types
     game_over = Enum.find(messages, & &1["type"] == "game_over")
-    assert game_over["winner"] == 1
+    assert game_over["winner_number"] == 1
     assert game_over["reason"] == "tower_destroyed"
 
     :gun.close(conn1)

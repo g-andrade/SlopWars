@@ -215,11 +215,7 @@ function handleMessage(msg) {
       break;
     case 'game_over':
       setPhase('game_over');
-      log(`GAME OVER! Player ${msg.winner} wins (${msg.reason})`, 'system');
-      break;
-    case 'opponent_disconnected':
-      setPhase('game_over');
-      log('Opponent disconnected — you win!', 'system');
+      log(`GAME OVER! Player ${msg.winner_number} wins (${msg.reason})`, 'system');
       break;
     case 'error':
       log('Error: ' + msg.message, 'error');

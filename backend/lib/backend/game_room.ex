@@ -105,7 +105,7 @@ defmodule Backend.GameRoom do
     if hp <= 0 do
       broadcast(state, %{
         "type" => "game_over",
-        "winner" => from_player,
+        "winner_number" => from_player,
         "reason" => "tower_destroyed"
       })
 
@@ -124,7 +124,9 @@ defmodule Backend.GameRoom do
     Logger.notice("[Room #{state.room_id}] Player #{player_number} disconnected, player #{winner} wins")
 
     send(state.players[winner].pid, {:game_msg, %{
-      "type" => "opponent_disconnected"
+      "type" => "game_over",
+      "winner_number" => winner,
+      "reason" => "opponent_disconnected"
     }})
 
     {:stop, :normal, %{state | phase: :game_over}}
@@ -174,7 +176,9 @@ defmodule Backend.GameRoom do
           Logger.notice("[Room #{state.room_id}] Player #{disconnected} connection lost")
 
           send(state.players[winner].pid, {:game_msg, %{
-            "type" => "opponent_disconnected"
+            "type" => "game_over",
+            "winner_number" => winner,
+            "reason" => "opponent_disconnected"
           }})
 
           {:stop, :normal, %{state | phase: :game_over}}
