@@ -167,7 +167,7 @@ function updateHpDisplay(msg) {
   const panel = document.getElementById('hp-panel');
   const display = document.getElementById('hp-display');
   panel.style.display = 'block';
-  display.innerHTML = `<div class="stat"><span>Player ${msg.target_player} Tower HP</span><span class="stat-val">${msg.hp}</span></div>`;
+  display.innerHTML = `<div class="stat"><span>Player ${msg.target_player_number} Tower HP</span><span class="stat-val">${msg.hp}</span></div>`;
 }
 
 function handleMessage(msg) {
@@ -184,7 +184,7 @@ function handleMessage(msg) {
       promptEl.focus();
       break;
     case 'prompt_received':
-      log(`Player ${msg.player} prompt received`, 'system');
+      log(`Player ${msg.player_number} prompt received`, 'system');
       break;
     case 'both_prompts_in':
       log('Both prompts submitted!', 'system');
@@ -204,14 +204,14 @@ function handleMessage(msg) {
       log('Builds ready — FIGHT!', 'system');
       break;
     case 'player_update':
-      log(`Player ${msg.player} position: ${JSON.stringify(msg.position)}, rotation: ${JSON.stringify(msg.rotation)}`, 'system');
+      log(`Player ${msg.player_number} position: ${JSON.stringify(msg.position)}, rotation: ${JSON.stringify(msg.rotation)}`, 'system');
       break;
     case 'shoot':
-      log(`Player ${msg.player} shot! ${JSON.stringify(msg)}`, 'system');
+      log(`Player ${msg.player_number} shot! ${JSON.stringify(msg)}`, 'system');
       break;
     case 'tower_hp':
       updateHpDisplay(msg);
-      log(`Player ${msg.player} reports Player ${msg.target_player} tower HP: ${msg.hp}`, 'system');
+      log(`Player ${msg.player_number} reports Player ${msg.target_player_number} tower HP: ${msg.hp}`, 'system');
       break;
     case 'game_over':
       setPhase('game_over');

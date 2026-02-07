@@ -79,9 +79,9 @@ defmodule Backend.WebsocketTest do
     send_json(conn1, ref1, %{"type" => "submit_prompt", "prompt" => "No prisoners!"})
     # Both get prompt_received
     p1_ack = recv_json(conn1, ref1)
-    assert %{"type" => "prompt_received", "player" => 1} = p1_ack
+    assert %{"type" => "prompt_received", "player_number" => 1} = p1_ack
     p2_sees_p1 = recv_json(conn2, ref2)
-    assert %{"type" => "prompt_received", "player" => 1} = p2_sees_p1
+    assert %{"type" => "prompt_received", "player_number" => 1} = p2_sees_p1
 
     send_json(conn2, ref2, %{"type" => "submit_prompt", "prompt" => "Happy days!"})
 
@@ -114,7 +114,7 @@ defmodule Backend.WebsocketTest do
     send_json(conn1, ref1, %{"type" => "player_update", "position" => %{"x" => 1, "y" => 2, "z" => 3}, "rotation" => %{"x" => 0, "y" => 0, "z" => 0}})
 
     msg = recv_json(conn2, ref2, 2000)
-    assert %{"type" => "player_update", "player" => 1, "position" => %{"x" => 1, "y" => 2, "z" => 3}} = msg
+    assert %{"type" => "player_update", "player_number" => 1, "position" => %{"x" => 1, "y" => 2, "z" => 3}} = msg
 
     :gun.close(conn1)
     :gun.close(conn2)
@@ -127,9 +127,9 @@ defmodule Backend.WebsocketTest do
     # Player 1 reports opponent tower HP = 50
     send_json(conn1, ref1, %{"type" => "tower_hp", "hp" => 50})
     msg1 = recv_json(conn1, ref1, 2000)
-    assert %{"type" => "tower_hp", "player" => 1, "target_player" => 2, "hp" => 50} = msg1
+    assert %{"type" => "tower_hp", "player_number" => 1, "target_player_number" => 2, "hp" => 50} = msg1
     msg2 = recv_json(conn2, ref2, 2000)
-    assert %{"type" => "tower_hp", "player" => 1, "target_player" => 2, "hp" => 50} = msg2
+    assert %{"type" => "tower_hp", "player_number" => 1, "target_player_number" => 2, "hp" => 50} = msg2
 
     # Player 1 reports opponent tower HP = 0 -> game_over
     send_json(conn1, ref1, %{"type" => "tower_hp", "hp" => 0})

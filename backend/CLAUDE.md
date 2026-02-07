@@ -64,7 +64,7 @@ Server -> {"type": "queued"}
 Server -> {"type": "matched", "room_id": "abc", "player_number": 1}
 
 Client -> {"type": "submit_prompt", "prompt": "No prisoners!"}
-Server -> {"type": "prompt_received", "player": 1}
+Server -> {"type": "prompt_received", "player_number": 1}
 Server -> {"type": "both_prompts_in"}
 Server -> {"type": "analyzing"}
 Server -> {"type": "builds_ready",
@@ -74,16 +74,16 @@ Server -> {"type": "builds_ready",
                            "tower_model_url": "...", "shield_model_url": "..."},
             "opponent_build": { ... }}
 
-# Relay messages (forwarded to opponent as-is, with "player" field added)
+# Relay messages (forwarded to opponent as-is, with "player_number" field added)
 Client -> {"type": "player_update", "position": {x,y,z}, "rotation": {x,y,z}}
-Opponent <- {"type": "player_update", "player": 1, "position": {x,y,z}, "rotation": {x,y,z}}
+Opponent <- {"type": "player_update", "player_number": 1, "position": {x,y,z}, "rotation": {x,y,z}}
 
 Client -> {"type": "shoot", "power": 5}
-Opponent <- {"type": "shoot", "player": 1, "power": 5}
+Opponent <- {"type": "shoot", "player_number": 1, "power": 5}
 
 # State messages (backend tracks tower HP and detects game over)
 Client -> {"type": "tower_hp", "hp": 280}
-Server -> both: {"type": "tower_hp", "player": 1, "target_player": 2, "hp": 280}
+Server -> both: {"type": "tower_hp", "player_number": 1, "target_player_number": 2, "hp": 280}
 Server -> both: {"type": "game_over", "winner": 1, "reason": "tower_destroyed"}  (if hp <= 0)
 
 Server -> {"type": "opponent_disconnected"}

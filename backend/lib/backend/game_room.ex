@@ -63,7 +63,7 @@ defmodule Backend.GameRoom do
       |> put_in([:players, player_number, :prompt], prompt)
       |> then(fn s -> if s.base_url == nil, do: %{s | base_url: base_url}, else: s end)
 
-    broadcast(state, %{"type" => "prompt_received", "player" => player_number})
+    broadcast(state, %{"type" => "prompt_received", "player_number" => player_number})
 
     if both_prompts_in?(state) do
       broadcast(state, %{"type" => "both_prompts_in"})
@@ -81,7 +81,7 @@ defmodule Backend.GameRoom do
 
   def handle_cast({:relay_to_opponent, from_player, message}, %{phase: :playing} = state) do
     to_player = opponent(from_player)
-    relay = Map.put(message, "player", from_player)
+    relay = Map.put(message, "player_number", from_player)
     send(state.players[to_player].pid, {:game_msg, relay})
     {:noreply, state}
   end
@@ -97,8 +97,8 @@ defmodule Backend.GameRoom do
 
     broadcast(state, %{
       "type" => "tower_hp",
-      "player" => from_player,
-      "target_player" => target_player,
+      "player_number" => from_player,
+      "target_player_number" => target_player,
       "hp" => hp
     })
 
