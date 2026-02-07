@@ -352,9 +352,10 @@ defmodule Backend.GameRoom do
 
   defp assets_collective_progress([], _), do: 100.0
 
-  defp assets_collective_progress(list, total_assets) do
+  defp assets_collective_progress(list, total_assets) when length(list) <= total_assets do
     sum = list |> Enum.map(&(&1.progress)) |> Enum.sum()
 
-    sum / total_assets
+    amount_completed = total_assets - length(list)
+    (100.0 * ((amount_completed / total_assets) + (sum / (100 * total_assets))))
   end
 end
