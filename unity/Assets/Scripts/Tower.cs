@@ -50,6 +50,7 @@ public class Tower : MonoBehaviour
         if (_towerHp <= 0)
             _gameEnded = true;
         
+        Debug.LogError("tower action call");
         TowerShotAction?.Invoke(_towerHp);
     }
 }

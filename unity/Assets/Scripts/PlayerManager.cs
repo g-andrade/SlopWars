@@ -38,6 +38,7 @@ public class PlayerManager
             TowerHp = towerHp
         };
 
+        Debug.LogError("sending tower call");
         _wsClient.SendAsync(towerMsg);
     }
 
