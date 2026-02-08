@@ -51,8 +51,6 @@ public class PlayerManager
             
         };
         
-        Debug.LogError($"sending {JsonConvert.SerializeObject(towerMsg)}");
-
         _wsClient.SendAsync(towerMsg);
     }
 

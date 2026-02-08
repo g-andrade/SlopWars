@@ -72,7 +72,7 @@ public class ShotObject : MonoBehaviour
 
             var shield = transform.GetChild(1);
             gameObject.layer = shield.gameObject.layer;
-            shield.localScale = Vector3.one * 2f;
+            shield.localScale = Vector3.one * 3f;
             
             shield.gameObject.SetActive(true);
             return;
@@ -116,7 +116,7 @@ public class ShotObject : MonoBehaviour
 
             var shield = transform.GetChild(1);
             gameObject.layer = shield.gameObject.layer;
-            shield.localScale = Vector3.one * 2f;
+            shield.localScale = Vector3.one * 3f;
             
             shield.gameObject.SetActive(true);
             return;
