@@ -18,15 +18,15 @@ Debug UI: `http://localhost:8080/fhampuaqm7vdq5niuzo3okajq4/debug`
 No Erlang/Elixir install required — just Docker.
 
 ```bash
-docker build -t slop-backend .
+docker build -t slop-wars-backend .
 cp .env.example .env     # fill in your API keys
-docker run -p 8080:8080 --env-file .env -v ./models:/app/priv/static/models slop-backend
+docker run -p 8080:8080 --env-file .env -v ./models:/app/priv/static/models slop-wars-backend
 ```
 
 Or pass keys directly:
 
 ```bash
-docker run -p 8080:8080 -e MISTRAL_API_KEY=... -e HYPER3D_API_KEY=... -v ./models:/app/priv/static/models slop-backend
+docker run -p 8080:8080 -e MISTRAL_API_KEY=... -e HYPER3D_API_KEY=... -v ./models:/app/priv/static/models slop-wars-backend
 ```
 
 The `-v` flag persists generated 3D models across container restarts. Logs go to stdout.

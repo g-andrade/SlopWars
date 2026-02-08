@@ -26,7 +26,7 @@ docker --version
 
 ```bash
 cd backend
-docker build -t slop-backend .
+docker build -t slop-wars-backend .
 ```
 
 ### 3. Configure API keys
@@ -41,7 +41,7 @@ cp .env.example .env
 ### 4. Run
 
 ```bash
-docker run -p 8080:8080 --env-file .env -v ./models:/app/priv/static/models slop-backend
+docker run -p 8080:8080 --env-file .env -v ./models:/app/priv/static/models slop-wars-backend
 ```
 
 Or pass keys directly without an `.env` file:
@@ -51,7 +51,7 @@ docker run -p 8080:8080 \
   -e MISTRAL_API_KEY=your_key_here \
   -e HYPER3D_API_KEY=your_key_here \
   -v ./models:/app/priv/static/models \
-  slop-backend
+  slop-wars-backend
 ```
 
 The `-v` flag persists generated 3D models across container restarts. The server starts on **port 8080**.
