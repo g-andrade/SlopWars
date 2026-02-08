@@ -135,6 +135,8 @@ defmodule Backend.GameRoom do
   end
 
   def handle_cast({:tower_hp_update, from_player, hp}, %__MODULE__{phase: :playing} = state) do
+    Logger.notice("Game room received enemy HP update from player #{from_player}: #{inspect hp}")
+
     target_player = opponent(from_player)
     hp = max(0, hp)
 
