@@ -51,7 +51,6 @@ public class OpponentManager
                 _targetCanonRotation = message.Rotation2.ToUnity();
                 break;
             case "tower_hp":
-                Debug.LogError(JsonConvert.SerializeObject(message));
                 _playerTower.UpdateTowerHp(message.TowerHp);
                 break;
         }
