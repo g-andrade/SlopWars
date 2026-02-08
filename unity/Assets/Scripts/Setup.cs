@@ -32,7 +32,12 @@ public class Setup : MonoBehaviour
 
     private GameObject _playerShootObject, _playerShield;
     private GameObject _opponentShootObject, _opponentShield;
-            
+
+    private void OnDestroy()
+    {
+        _wsClient?.CloseAsync();
+    }
+
     private void Start()
     {
         _wsClient = new WebSocketsClient(socketUrl);

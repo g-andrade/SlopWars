@@ -11,6 +11,8 @@ public class MovementManager : MonoBehaviour
 
     private float _playerYRotation, _canonXRotation;
     
+    private Rigidbody rb;
+    
     public bool MovementOn { get; set; }
 
     public void StartGame()
@@ -29,18 +31,24 @@ public class MovementManager : MonoBehaviour
 
     private void HandleMovement()
     {
-        if (!MovementOn)
-            return;
-        
-        var h = Input.GetAxis("Horizontal");
-        var v = Input.GetAxis("Vertical");
-        
-        if (h == 0f && v == 0f)
-            return;
+        if (!MovementOn) return;
 
-        var t = transform;
-        var move = (t.right * h + t.forward * v) * moveSpeed;
-        t.position += move * Time.deltaTime;
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        // No input = no sliding
+        if (h == 0f && v == 0f)
+        {
+            var vel = rb.linearVelocity;
+            rb.linearVelocity = new Vector3(0f, vel.y, 0f);
+            return;
+        }
+
+        Vector3 moveDir = (transform.right * h + transform.forward * v).normalized;
+        Vector3 targetVel = moveDir * moveSpeed;
+
+        // Keep gravity (Y) but control XZ fully
+        rb.linearVelocity = new Vector3( targetVel.x, rb.linearVelocity.y, targetVel.z );
     }
 
     private void HandleMouseLook()

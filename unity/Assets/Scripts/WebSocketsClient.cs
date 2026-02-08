@@ -86,6 +86,7 @@ public class WebSocketsClient
             _cts.Token
         );
     }
+    
 
     public async Task CloseAsync()
     {
