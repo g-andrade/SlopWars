@@ -14,6 +14,11 @@ public class MovementManager : MonoBehaviour
     private Rigidbody rb;
     
     public bool MovementOn { get; set; }
+    
+    private void Awake()
+    {
+        if (rb == null) rb = GetComponent<Rigidbody>();
+    }
 
     public void StartGame()
     {
