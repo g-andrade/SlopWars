@@ -1,4 +1,4 @@
-[UNITY SETUP]
+## [UNITY SETUP]
 
 - Make sure git and git lfs is installed to download the required pacakge references
 - Unity version is 6000.0.58f2
