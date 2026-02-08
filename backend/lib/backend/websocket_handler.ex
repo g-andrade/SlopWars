@@ -5,8 +5,6 @@ defmodule Backend.WebsocketHandler do
 
   import ExUnit.Assertions
 
-  require Logger
-
   ####
 
   if Mix.env() === :test do
@@ -179,8 +177,6 @@ defmodule Backend.WebsocketHandler do
   end
 
   defp handle_tower_hp(hp, %__MODULE__{} = state) do
-    Logger.notice("[Player #{state.player_number}] Got enemy tower HP update: #{inspect hp}")
-
     if state.status == :in_game and state.room_id != nil do
       Backend.GameRoom.tower_hp_update(state.room_id, state.player_number, hp)
       {:ok, state}
