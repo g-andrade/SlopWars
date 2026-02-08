@@ -30,3 +30,6 @@ backend-*.tar
 
 # Generated models
 /priv/static/models/
+
+# Environment variables / secrets
+.env
