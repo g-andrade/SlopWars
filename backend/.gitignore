@@ -33,3 +33,6 @@ backend-*.tar
 
 # Environment variables / secrets
 .env
+
+# Folder Docker leaves behind when mapping models storage
+/models/
