@@ -1,3 +1,6 @@
+Slop Wars is an 1vs1 real time multiplayer game, therefore the backend service
+needs to run before two instances of the app can connect.
+
 ## [UNITY SETUP]
 
 - Make sure git and git lfs is installed to download the required pacakge references
