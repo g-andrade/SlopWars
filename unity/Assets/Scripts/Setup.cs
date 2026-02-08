@@ -96,11 +96,8 @@ public class Setup : MonoBehaviour
         playerShootingManager.Init(_playerManager, playerShootParent, _playerBuild.bomb_damage, _playerShootObject, _playerShield);
         opponentShootingManager.Init(null, opponentShootParent, _opponentBuild.bomb_damage, _opponentShootObject, _opponentShield);
 
-        movementManager.MovementOn = true;
         playerShootingManager.ShootingOn = true;
         opponentShootingManager.ShootingOn = false;
-
-        movementManager.StartGame();
     }
 
     private async void OnBuildsReady()
@@ -119,6 +116,9 @@ public class Setup : MonoBehaviour
         
         a1tower.Initialize(playerIsA1 ? _playerBuild.tower_hp : _opponentBuild.tower_hp);
         a2tower.Initialize(playerIsA1 ? _opponentBuild.tower_hp : _playerBuild.tower_hp);
+        
+        movementManager.MovementOn = true;
+        movementManager.StartGame();
 
         var tower1Task = ReceivedAssetReady("tower", 1);
         var tower2Task = ReceivedAssetReady("tower", 2);
