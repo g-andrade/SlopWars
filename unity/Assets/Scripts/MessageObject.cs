@@ -46,6 +46,9 @@ public class MessageObject
     
     [JsonProperty("url")]
     public string Url { get; set; }
+    
+    [JsonProperty("overall")]
+    public float Progress { get; set; }
 }
 
 [Serializable]

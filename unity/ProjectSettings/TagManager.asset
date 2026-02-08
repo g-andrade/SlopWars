@@ -14,13 +14,13 @@ TagManager:
   - Ground
   - Wall
   - Separation
-  - Projectile
+  - 
   - Canon
   - Tower
-  - Shield
-  - 
-  - 
-  - 
+  - ShieldPlayer
+  - ShieldOpponent
+  - ProjectileOpponent
+  - ProjectilePlayer
   - 
   - 
   - 

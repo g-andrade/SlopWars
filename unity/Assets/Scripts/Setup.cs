@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using TMPro;
 using UnityEngine;
 
 public class Setup : MonoBehaviour
@@ -16,6 +17,7 @@ public class Setup : MonoBehaviour
     [SerializeField] private Transform playerCannon, opponentCanon;
     [SerializeField] private RuntimeAssetFactory runtimeAssetFactory;
     [SerializeField] private GameObject shieldVolume, projectileVolume;
+    [SerializeField] private TextMeshProUGUI loadingText;
 
     private WebSocketsClient _wsClient;
     private PlayerManager _playerManager;
@@ -39,8 +41,7 @@ public class Setup : MonoBehaviour
         
         mainScreen.Init(_wsClient);
 
-        // todo move
-        var towerUrl = "https://file.hyper3d.com/4dbe121b-7806-4e5c-aa7e-e264241e7066/pack/glb/base_basic_pbr.glb?response-cache-control=private&response-content-type=model%2Fgltf-binary&response-content-disposition=attachment%3B%20filename%3D%22base_basic_pbr.glb%22&X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Content-Sha256=UNSIGNED-PAYLOAD&X-Tos-Credential=AKLTYzE0MDRlNzUyNWMzNGE5N2JlZTQ5ZGRkZWQ2NWY5ZTA%2F20260207%2Ffile.hyper3d.com%2Ftos%2Frequest&X-Tos-Date=20260207T192210Z&X-Tos-Expires=604800&X-Tos-SignedHeaders=host&X-Tos-Signature=71ce937cffe052e1eb1e55db177fbd3ed2c474b7dc0a55adbe04a5f00c21743c";
+        PingLoop();
     }
 
     private void OnMessageReceived(string json)
@@ -55,6 +56,7 @@ public class Setup : MonoBehaviour
             case "builds_ready":
                 _playerBuild = message.PlayerBuild;
                 _opponentBuild = message.OpponentBuild;
+                loadingText.gameObject.SetActive(true);
                 OnBuildsReady();
                 break;
             case "game_over":
@@ -65,9 +67,23 @@ public class Setup : MonoBehaviour
                 var key = $"{message.Name}{message.PlayerNumber}";
                 _receivedAssets.Add(key, message.Url);
                 break;
+            case "assets_progress":
+                var progress = Mathf.FloorToInt(message.Progress);
+                loadingText.text = $"LOADING {progress.ToString()}%";
+                break;
             case "playing":
+                loadingText.gameObject.SetActive(false);
                 OnPlay();
                 break;
+        }
+    }
+
+    private async void PingLoop()
+    {
+        while (true)
+        {
+            await Task.Delay(1000);
+            await _wsClient.SendAsync(new MessageObject { Type = "PING" });
         }
     }
 
@@ -146,7 +162,6 @@ public class Setup : MonoBehaviour
 
     private void OnPlayerBombReady(GameObject playerBomb)
     {
-        playerBomb.layer = LayerMask.NameToLayer("Projectile");
         playerBomb.transform.SetParent(runtimeAssetFactory.transform);
         playerBomb.FitToPlaceholder(projectileVolume);
         playerBomb.AddOrUpdateCollider();
@@ -154,14 +169,19 @@ public class Setup : MonoBehaviour
         playerBomb.SetActive(false);
 
         if (_playerId == 1)
+        {
+            playerBomb.layer = LayerMask.NameToLayer("ProjectilePlayer");
             _playerShootObject = playerBomb;
+        }
         else
+        {
+            playerBomb.layer = LayerMask.NameToLayer("ProjectileOpponent");
             _opponentShootObject = playerBomb;
+        }
     }
 
     private void OnOpponentBombReady(GameObject opponentBomb)
     {
-        opponentBomb.layer = LayerMask.NameToLayer("Projectile");
         opponentBomb.transform.SetParent(runtimeAssetFactory.transform);
         opponentBomb.FitToPlaceholder(projectileVolume);
         opponentBomb.AddOrUpdateCollider();
@@ -169,14 +189,19 @@ public class Setup : MonoBehaviour
         opponentBomb.SetActive(false);
 
         if (_playerId == 1)
+        {
+            opponentBomb.layer = LayerMask.NameToLayer("ProjectileOpponent");
             _opponentShootObject = opponentBomb;
+        }
         else
+        {
+            opponentBomb.layer = LayerMask.NameToLayer("ProjectilePlayer");
             _playerShootObject = opponentBomb;
+        }
     }
 
     private void OnPlayerShieldReady(GameObject playerShield)
     {
-        playerShield.layer = LayerMask.NameToLayer("Shield");
         playerShield.transform.SetParent(runtimeAssetFactory.transform);
         playerShield.FitToPlaceholder(shieldVolume);
         playerShield.AddOrUpdateCollider();
@@ -184,14 +209,19 @@ public class Setup : MonoBehaviour
         playerShield.SetActive(false);
 
         if (_playerId == 1)
+        {
+            playerShield.layer = LayerMask.NameToLayer("ShieldPlayer");
             _playerShield = playerShield;
+        }
         else
+        {
+            playerShield.layer = LayerMask.NameToLayer("ShieldOpponent");
             _opponentShield = playerShield;
+        }
     }
 
     private void OnOpponentShieldReady(GameObject opponentShield)
     {
-        opponentShield.layer = LayerMask.NameToLayer("Shield");
         opponentShield.transform.SetParent(runtimeAssetFactory.transform);
         opponentShield.FitToPlaceholder(shieldVolume);
         opponentShield.AddOrUpdateCollider();
@@ -199,9 +229,15 @@ public class Setup : MonoBehaviour
         opponentShield.SetActive(false);
 
         if (_playerId == 1)
+        {
+            opponentShield.layer = LayerMask.NameToLayer("ShieldOpponent");
             _opponentShield = opponentShield;
+        }
         else
+        {
+            opponentShield.layer = LayerMask.NameToLayer("ShieldPlayer");
             _playerShield = opponentShield;
+        }
     }
     
     private void OnTower1Ready(GameObject tower)

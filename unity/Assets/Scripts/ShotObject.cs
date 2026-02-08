@@ -69,9 +69,9 @@ public class ShotObject : MonoBehaviour
         {
             StickToGround(collision);
             transform.GetChild(0).GetComponent<MeshRenderer>().enabled = false;
-            gameObject.layer = LayerMask.NameToLayer("Shield");
 
             var shield = transform.GetChild(1);
+            gameObject.layer = shield.gameObject.layer;
             shield.localScale = Vector3.one * 4f;
             
             shield.gameObject.SetActive(true);
@@ -96,7 +96,8 @@ public class ShotObject : MonoBehaviour
             }
         }
 
-        if (otherLayer == LayerMask.NameToLayer("Shield"))
+        if ((gameObject.layer == LayerMask.NameToLayer("ProjectilePlayer") && otherLayer == LayerMask.NameToLayer("ShieldOpponent"))
+            || (gameObject.layer == LayerMask.NameToLayer("ProjectileOpponent") && otherLayer == LayerMask.NameToLayer("ShieldPlayer")))
         {
             var shieldObject = collision.gameObject;
             if (shieldObject)
@@ -106,6 +107,51 @@ public class ShotObject : MonoBehaviour
                 return;
             }
         }
+
+        if ((gameObject.layer == LayerMask.NameToLayer("ProjectilePlayer") && otherLayer == LayerMask.NameToLayer("ShieldPlayer"))
+            || (gameObject.layer == LayerMask.NameToLayer("ProjectileOpponent") && otherLayer == LayerMask.NameToLayer("ShieldOpponent")))
+        {
+            StickToMiddleObject(collision);
+            transform.GetChild(0).GetComponent<MeshRenderer>().enabled = false;
+
+            var shield = transform.GetChild(1);
+            gameObject.layer = shield.gameObject.layer;
+            shield.localScale = Vector3.one * 3f;
+            
+            shield.gameObject.SetActive(true);
+            return;
+        }
+    }
+    
+    private void StickToMiddleObject(Collision c)
+    {
+        _inFlight = false;
+
+        _rb.linearVelocity = Vector3.zero;
+        _rb.angularVelocity = Vector3.zero;
+        _rb.useGravity = false;
+        _rb.isKinematic = true;
+
+        var t = transform;
+        var cp = c.GetContact(0);
+
+        // Align to surface: make our UP point along the surface normal
+        // (if your tile's face normal is transform.forward instead, swap Vector3.up -> Vector3.forward)
+        t.rotation = Quaternion.FromToRotation(t.up, cp.normal) * t.rotation;
+
+        var targetCol = c.collider;
+        if (_coll == null)
+        {
+            t.position = cp.point + cp.normal * stickOffset;
+            return;
+        }
+
+        var position = t.position;
+        var onTarget = targetCol.ClosestPoint(position);
+        var mySupportTowardTarget = _coll.ClosestPoint(onTarget - cp.normal * 10f);
+
+        var push = Vector3.Dot(onTarget - mySupportTowardTarget, cp.normal);
+        t.position = position + cp.normal * push + cp.normal * stickOffset;
     }
 
     private void StickToGround(Collision c)
