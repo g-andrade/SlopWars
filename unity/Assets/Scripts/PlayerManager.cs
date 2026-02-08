@@ -6,6 +6,7 @@ public class PlayerManager
     private readonly int _playerId;
     private readonly Transform _playerTransform, _playerCanon;
     private readonly WebSocketsClient _wsClient;
+    private readonly Tower _opponentTower;
 
     public PlayerManager(int playerId, WebSocketsClient wsClient, Transform playerTransform, Tower opponentTower, Transform playerCanon)
     {
@@ -13,12 +14,22 @@ public class PlayerManager
         _playerTransform = playerTransform;
         _wsClient = wsClient;
         _playerCanon = playerCanon;
+        _opponentTower = opponentTower;
         
         _ = SendPositionLoop();
 
-        opponentTower.TowerShotAction += SendTowerHpUpdate;
+        TowerUpdateLoop();
     }
-        
+
+    private async void TowerUpdateLoop()
+    {
+        while (true)
+        {
+            await Task.Delay(1000);
+            SendTowerHpUpdate(_opponentTower.TowerHp);
+        }
+    }
+    
     public void SendShootMessage(float dmg)
     {
         var shootMsg = new MessageObject
@@ -38,7 +49,6 @@ public class PlayerManager
             TowerHp = towerHp
         };
 
-        Debug.LogError("sending tower call");
         _wsClient.SendAsync(towerMsg);
     }
 

@@ -9,6 +9,8 @@ public class Tower : MonoBehaviour
     [SerializeField] private Slider towerHpSlider;
     [SerializeField] private TextMeshProUGUI hpText;
 
+    public float TowerHp => _towerHp;
+
     private float _towerHp;
     private float _startTowerHp;
     private bool _gameEnded;
@@ -50,7 +52,6 @@ public class Tower : MonoBehaviour
         if (_towerHp <= 0)
             _gameEnded = true;
         
-        Debug.LogError("tower action call");
         TowerShotAction?.Invoke(_towerHp);
     }
 }
