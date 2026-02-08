@@ -47,7 +47,8 @@ public class PlayerManager
         var towerMsg = new MessageObject
         {
             Type = "tower_hp",
-            TowerHp = towerHp
+            TowerHp = towerHp,
+            
         };
         
         Debug.LogError($"sending {JsonConvert.SerializeObject(towerMsg)}");

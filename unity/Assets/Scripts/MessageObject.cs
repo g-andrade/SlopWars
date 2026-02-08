@@ -35,7 +35,7 @@ public class MessageObject
     [JsonProperty("rotation2")]
     public Quaternion Rotation2 { get; set; }
     
-    [JsonProperty("tower_hp")]
+    [JsonProperty("hp")]
     public float TowerHp { get; set; }
     
     [JsonProperty("winner")]
