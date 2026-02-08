@@ -150,6 +150,8 @@ defmodule Backend.GameRoom do
     })
 
     if hp <= 0 do
+      Logger.notice("[Room #{state.room_id}] Tower destroyed, player #{from_player} wins")
+
       broadcast(state, %{
         "type" => "game_over",
         "winner_number" => from_player,
