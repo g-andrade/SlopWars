@@ -10,6 +10,8 @@ public class WebSocketsClient
 {
     private readonly string _url;
     
+    public bool Connected { get; private set; }
+    
     private ClientWebSocket _ws;
     private CancellationTokenSource _cts;
 
@@ -28,6 +30,8 @@ public class WebSocketsClient
         await _ws.ConnectAsync(new Uri(_url), _cts.Token);
         
         Debug.Log("Connected");
+
+        Connected = true;
 
         _ = ReceiveLoop();
     }
@@ -106,5 +110,7 @@ public class WebSocketsClient
             _cts?.Dispose();
             _cts = null;
         }
+
+        Connected = false;
     }
 }

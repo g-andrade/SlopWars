@@ -24,7 +24,7 @@ public class PlayerManager
 
     private async void TowerUpdateLoop()
     {
-        while (true)
+        while (_wsClient.Connected)
         {
             await Task.Delay(1000);
             SendTowerHpUpdate(_opponentTower.TowerHp);

@@ -50,6 +50,7 @@ public class MainScreen : MonoBehaviour
 
     private void OnSend()
     {
+        sendButton.interactable = false;
         OnSubmitPrompt(promptInput.text);
     }
 
