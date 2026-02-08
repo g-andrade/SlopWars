@@ -45,8 +45,6 @@ public class Setup : MonoBehaviour
         _wsClient.OnMessageReceived += OnMessageReceived;
         
         mainScreen.Init(_wsClient);
-
-        PingLoop();
     }
 
     private void OnMessageReceived(string json)
@@ -80,15 +78,6 @@ public class Setup : MonoBehaviour
                 loadingText.gameObject.SetActive(false);
                 OnPlay();
                 break;
-        }
-    }
-
-    private async void PingLoop()
-    {
-        while (true)
-        {
-            await Task.Delay(1000);
-            await _wsClient.SendAsync(new MessageObject { Type = "PING" });
         }
     }
 

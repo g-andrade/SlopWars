@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UnityEngine;
 
 public class PlayerManager
@@ -48,6 +49,8 @@ public class PlayerManager
             Type = "tower_hp",
             TowerHp = towerHp
         };
+        
+        Debug.LogError($"sending {JsonConvert.SerializeObject(towerMsg)}");
 
         _wsClient.SendAsync(towerMsg);
     }

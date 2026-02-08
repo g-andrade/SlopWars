@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 public class MainScreen : MonoBehaviour
 {
-    [SerializeField] private Button connectButton;
+    [SerializeField] private Button connectButton, sendButton;
     [SerializeField] private TMP_InputField promptInput;
     [SerializeField] private GameObject promptTitle;
 
@@ -45,12 +45,19 @@ public class MainScreen : MonoBehaviour
         promptInput.gameObject.SetActive(false);
         connectButton.onClick.AddListener(OnConnectButton);
         promptInput.onSubmit.AddListener(OnSubmitPrompt);
+        sendButton.onClick.AddListener(OnSend);
+    }
+
+    private void OnSend()
+    {
+        OnSubmitPrompt(promptInput.text);
     }
 
     private void OnDisable()
     {
         connectButton.onClick.RemoveListener(OnConnectButton);
         promptInput.onSubmit.RemoveListener(OnSubmitPrompt);
+        sendButton.onClick.RemoveListener(OnSend);
         
         _webSocketsClient.OnMessageReceived -= OnMessageReceived;
     }

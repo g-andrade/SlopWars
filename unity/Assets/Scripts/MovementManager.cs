@@ -6,8 +6,8 @@ public class MovementManager : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private float canonTopLimit = 15f;
     [SerializeField] private float canonBottomLimit = 30f;
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float mouseSensitivity = 2f;
+    [SerializeField] private float moveSpeed = 8f;
+    [SerializeField] private float mouseSensitivity = 4f;
 
     private float _playerYRotation, _canonXRotation;
     

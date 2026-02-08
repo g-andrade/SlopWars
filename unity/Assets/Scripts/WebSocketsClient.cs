@@ -60,7 +60,7 @@ public class WebSocketsClient
 
     private void OnMessage(string json)
     {
-        Debug.Log($"[WS] {json}");
+        //Debug.Log($"[WS] {json}");
         
         OnMessageReceived?.Invoke(json);
     }
